@@ -5,7 +5,8 @@ Each PDF is written next to its source. Only the Markdown used in docs/ is
 supported: headings (#, ##), paragraphs, bullet and numbered lists (nested by
 indentation), pipe tables, **bold**, `code`, ``` code blocks and --- separators.
 To assemble a long document: ![caption](file.png) adds a numbered figure, on a landscape
-page when it is wide, unless followed by {portrait}; [[saut]] breaks the page;
+page when it is wide, unless followed by {portrait} or {portrait:70} for 70 % of its size;
+[[saut]] breaks the page;
 [[sommaire]] adds the table of contents; {{inclure file.md N}} includes a document from
 its first ## heading, numbered under chapter N, up to its [[fin-inclusion]] line if it has
 one. {{inclure file.md N C1,C2}} keeps only these ### subsections among those named Cn.
@@ -44,11 +45,13 @@ HEADER_BACKGROUND = colors.HexColor("#1F4E79")
 GRID_COLOR = colors.HexColor("#B4C6E7")
 CODE_BACKGROUND = colors.HexColor("#F2F2F2")
 CELL_PADDING = 6  # reportlab's default left and right padding, in points
+# A word exactly as wide as its cell would still be cut, by rounding
+ROUNDING_MARGIN = 1
 NON_BREAKING_SPACE = " "
 
 LIST_ITEM = re.compile(r"^(?P<indent> *)(?P<marker>[-*]|\d+\.) (?P<text>.*)$")
 HEADING = re.compile(r"^(?P<level>#{1,4}) (?P<text>.*)$")
-IMAGE = re.compile(r"^!\[(?P<caption>.*)\]\((?P<path>[^)]*)\)(?P<portrait>\{portrait\})?$")
+IMAGE = re.compile(r"^!\[(?P<caption>.*)\]\((?P<path>[^)]*)\)(?P<portrait>\{portrait(?::(?P<percent>\d+))?\})?$")
 INCLUDE = re.compile(r"^\{\{inclure (?P<file>\S+) (?P<chapter>\w+)(?: (?P<only>\S+))?\}\}$")
 FILTERABLE_SUBSECTION = re.compile(r"^### (?P<name>C\d+) ")
 SECTION_NUMBER = re.compile(r"^(?P<number>\d+(?:\.\d+)?)\.? ")
@@ -60,6 +63,7 @@ LANDSCAPE_ASPECT_RATIO = 1.3
 PIXEL_IN_POINTS = 0.75  # 96 dpi: a small figure keeps its natural size
 FRAME_PADDING = 6  # reportlab's default frame padding, in points
 CAPTION_RESERVED_HEIGHT = 40
+FULL_SIZE_PERCENT = 100
 # A heading never stays alone at the bottom of a page
 HEADING_MINIMUM_SPACE = 3 * cm
 CONTENTS_LEVELS = {"h2": 0}
@@ -104,7 +108,8 @@ def parse_blocks(lines: list[str]) -> list[Block]:
             blocks.append(Block("contents"))
         elif match := IMAGE.match(stripped):
             marker = PORTRAIT if match["portrait"] else ""
-            blocks.append(Block("image", match["caption"], path=match["path"], marker=marker))
+            percent = int(match["percent"] or FULL_SIZE_PERCENT)
+            blocks.append(Block("image", match["caption"], level=percent, path=match["path"], marker=marker))
         elif stripped == "---":
             blocks.append(Block("rule"))
         elif match := HEADING.match(stripped):
@@ -166,9 +171,10 @@ def column_texts(rows: list[list[str]], index: int) -> list[str]:
 
 
 def longest_word_width(texts: list[str]) -> float:
-    words = [word for text in texts for word in re.sub(r"[*`]", "", text).split()]
-    widest = max((pdfmetrics.stringWidth(word, FONT_BOLD, TABLE_FONT_SIZE) for word in words), default=0)
-    return widest + 2 * CELL_PADDING
+    # Code is measured in its own font: monospaced words are wider than the same text in bold.
+    widths = [pdfmetrics.stringWidth(word.strip("*`"), FONT_MONO if "`" in word else FONT_BOLD, TABLE_FONT_SIZE)
+              for text in texts for word in text.split()]
+    return max(widths, default=0) + 2 * CELL_PADDING + ROUNDING_MARGIN
 
 
 def column_widths(rows: list[list[str]], available_width: float) -> list[float]:
@@ -254,7 +260,7 @@ def build_figure(block: Block, number: int, path: Path, styles: dict) -> KeepTog
     available_width = page_width - 2 * (PAGE_MARGIN + FRAME_PADDING)
     available_height = page_height - 2 * (PAGE_MARGIN + FRAME_PADDING) - CAPTION_RESERVED_HEIGHT
     width, height = ImageReader(str(path)).getSize()
-    scale = min(available_width / width, available_height / height, PIXEL_IN_POINTS)
+    scale = min(available_width / width, available_height / height, PIXEL_IN_POINTS) * block.level / FULL_SIZE_PERCENT
     caption = f"Figure {number} — {block.text}"
     return KeepTogether([Image(str(path), width=width * scale, height=height * scale),
                          Paragraph(format_inline(caption), styles["caption"])])
