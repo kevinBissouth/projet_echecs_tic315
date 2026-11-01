@@ -29,7 +29,7 @@ public class PartieEntreJoueurs extends Partie {
     public PartieEntreJoueurs(Joueur createur, Cadence cadence, Couleur couleur, Joueur invite,
                               CalculClassement calcul, Clock horloge) {
         super(horloge);
-        if (createur == invite) {
+        if (createur.equals(invite)) {
             throw new IllegalArgumentException("Un joueur ne peut pas s'inviter lui-même");
         }
         this.createur = createur;
@@ -102,11 +102,11 @@ public class PartieEntreJoueurs extends Partie {
     }
 
     boolean peutEtreRejointePar(Joueur joueur) {
-        return joueur != createur && (invite == null || joueur == invite) && joueur.peutJouer();
+        return !joueur.equals(createur) && (invite == null || joueur.equals(invite)) && joueur.peutJouer();
     }
 
     boolean estInvite(Joueur joueur) {
-        return joueur == invite;
+        return joueur.equals(invite);
     }
 
     void ajouterAdversaire(Joueur joueur) {

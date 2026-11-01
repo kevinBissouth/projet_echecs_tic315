@@ -144,6 +144,16 @@ class PartieEntreJoueursTest {
     }
 
     @Test
+    void unJoueurRechargeResteLeMemeParticipant() {
+        PartieEntreJoueurs partie = partieEnCours();
+        Joueur aliceRechargee = new Joueur("alice", "alice@exemple.com");
+
+        jouer(partie, aliceRechargee, "e2", "e4");
+
+        assertEquals(1, partie.coups().size());
+    }
+
+    @Test
     void lesBlancsCommencentPuisLeTraitAlterne_RG3() {
         PartieEntreJoueurs partie = partieEnCours();
         assertEquals(Couleur.BLANC, partie.trait());

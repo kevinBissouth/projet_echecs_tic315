@@ -238,6 +238,6 @@ public abstract class Partie {
     }
 
     private Optional<Participation> participationDe(Joueur joueur) {
-        return participations.stream().filter(participation -> participation.joueur() == joueur).findFirst();
+        return participations.stream().filter(participation -> participation.joueur().equals(joueur)).findFirst();
     }
 }

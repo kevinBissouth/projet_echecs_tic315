@@ -2,6 +2,7 @@ package echecs.metier.joueur;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -74,6 +75,15 @@ class JoueurTest {
         alice.reactiver();
 
         assertTrue(alice.peutJouer());
+    }
+
+    @Test
+    void deuxObjetsDeMemePseudoSontLeMemeJoueur_RG12() {
+        Joueur recharge = new Joueur("alice", "alice@exemple.com");
+
+        assertEquals(alice, recharge);
+        assertEquals(alice.hashCode(), recharge.hashCode());
+        assertNotEquals(alice, new Joueur("bob", "bob@exemple.com"));
     }
 
     @Test

@@ -31,7 +31,7 @@ public class Joueur {
         return etat;
     }
 
-    public boolean peutJouer() {
+    public synchronized boolean peutJouer() {
         return etat == EtatCompte.ACTIF && !occupe;
     }
 
@@ -39,29 +39,41 @@ public class Joueur {
         return classements.get(categorie);
     }
 
-    public void suspendre() {
+    public synchronized void suspendre() {
         if (etat == EtatCompte.SUSPENDU) {
             throw new IllegalStateException("Le compte de " + pseudo + " est déjà suspendu");
         }
         etat = EtatCompte.SUSPENDU;
     }
 
-    public void reactiver() {
+    public synchronized void reactiver() {
         if (etat == EtatCompte.ACTIF) {
             throw new IllegalStateException("Le compte de " + pseudo + " est déjà actif");
         }
         etat = EtatCompte.ACTIF;
     }
 
-    public void occuper() {
+    /** Synchronized: the same player could try to enter two games from two browser tabs. */
+    public synchronized void occuper() {
         if (!peutJouer()) {
             throw new IllegalStateException(pseudo + " ne peut pas entrer dans une partie");
         }
         occupe = true;
     }
 
-    public void liberer() {
+    public synchronized void liberer() {
         occupe = false;
+    }
+
+    /** A player is identified by their pseudo, unique by RG12, whichever object represents them. */
+    @Override
+    public boolean equals(Object autre) {
+        return autre instanceof Joueur joueur && pseudo.equals(joueur.pseudo);
+    }
+
+    @Override
+    public int hashCode() {
+        return pseudo.hashCode();
     }
 
     private static String exigerRenseigne(String valeur, String nom) {
