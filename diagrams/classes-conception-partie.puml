@@ -5,6 +5,7 @@
 ' Patron État : une classe par état du diagramme d'états de la partie, une opération
 ' par événement ; l'état par défaut refuse (TransitionInterditeException), chaque
 ' état concret ne redéfinit que les événements qu'il accepte.
+' Les observateurs sont les écrans des deux joueurs : le système ne gère pas de spectateurs.
 ' Patron Observateur : la partie notifie ses observateurs (les vues, MVC) sans les
 ' connaître ; modèle « tiré » : l'observateur relit la partie qu'on lui passe.
 ' Refus du coup (pas son trait, coup illégal : refus(motif) de sequence-jouer-coup) :
@@ -196,14 +197,14 @@ EtatDePartie <|-- EtatAnnulee
 Partie "0..*" --> "1\netatCourant" EtatDePartie
 Partie "1" *--> "1..2\nparticipations" Participation
 Participation "0..*" --> "                                    1\n                                    joueur" Joueur
-Partie "0..*" --> "0..*\nobservateurs" ObservateurPartie
+Partie "0..*" o--> "0..*\nobservateurs" ObservateurPartie
 Partie "1" *--> "1\nplateau" Plateau
 Partie "1" *--> "0..*\ncoups {ordered}" Coup
 
 PartieEntreJoueurs "0..*" --> "1                \ncreateur                " Joueur
 PartieEntreJoueurs "0..*" --> "0..1\ninvite" Joueur
 PartieEntreJoueurs "0..*" --> "1\ncadence" Cadence
-PartieEntreJoueurs "0..*" --> "1\ncalcul" CalculClassement
+PartieEntreJoueurs "0..*" o--> "1\ncalcul" CalculClassement
 
 EtatDePartie ..> TransitionInterditeException : <<throws>>
 Partie ..> CoupRefuseException : <<throws>>

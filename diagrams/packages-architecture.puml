@@ -1,61 +1,53 @@
 @startuml packages-architecture
-' Diagramme de packages (jalon J4) : l'organisation en couches de la conception.
-' La flèche pointillée se lit « dépend de » (cours, §2.3). Règles respectées :
+' Diagramme de packages (jalon J4), sur le modèle de la figure 11 du cours. La flèche
+' pointillée se lit « dépend de » (cours, §2.3). Règles respectées :
 ' - aucune dépendance cyclique ;
 ' - dépendre de ce qui est stable : ihm, controle et infrastructure dépendent du
 '   métier, le métier ne dépend d'aucun d'eux ;
-' - inversion des dépendances : infrastructure implémente des interfaces de
-'   controle (MoteurEchecs, ServiceAuthentification, DepotParties, DepotJoueurs),
+' - inversion des dépendances : infrastructure implémente des interfaces de controle,
 '   si bien que controle ne connaît ni Stockfish, ni OpenID Connect, ni la base ;
-' - MVC : la vue (ihm) dépend du contrôleur et du modèle ; le modèle la prévient
-'   par l'interface ObservateurPartie, qu'il possède.
-' Dans le métier, partie dépend de jeu et de joueur ; jeu et joueur sont
-' indépendants. Les classes de chaque package sont listées dans docs/conception.md.
+' - MVC : la vue (ihm) dépend du contrôleur et du modèle ; le modèle la prévient par
+'   l'interface ObservateurPartie, qu'il possède.
+' Les classes de chaque package sont listées dans le dossier de conception.
 
-skinparam packageStyle folder
 skinparam nodesep 60
 skinparam ranksep 70
 
-package ihm <<Couche présentation>> {
+package echecs {
+  package ihm {
+  }
+  package controle {
+  }
+  package infrastructure {
+  }
+  package metier {
+    package partie {
+    }
+    package jeu {
+    }
+    package joueur {
+    }
+  }
 }
 
-package controle <<Couche application>> {
+package Spring <<external>> {
 }
-
-package metier <<Couche métier>> {
-  package partie {
-  }
-  package jeu {
-  }
-  package joueur {
-  }
-}
-
-package infrastructure <<Services techniques>> {
+package JDBC <<external>> {
 }
 
 ihm ..> controle
 ihm ..> partie
 ihm ..> jeu
+ihm ..> Spring
 controle ..> partie
 controle ..> jeu
 controle ..> joueur
-partie ..> jeu
-partie ..> joueur
+partie ..> jeu : <<import>>
+partie ..> joueur : <<import>>
 infrastructure ..> controle
 infrastructure ..> partie
 infrastructure ..> jeu
 infrastructure ..> joueur
-
-note right of infrastructure
-  AdaptateurStockfish, AdaptateurOpenIdConnect,
-  DepotPartiesSql, DepotJoueursSql : implémentations
-  des interfaces de controle (inversion des dépendances)
-end note
-
-note right of ihm
-  VuePartie réalise ObservateurPartie (partie) :
-  la partie notifie la vue sans la connaître (MVC)
-end note
+infrastructure ..> JDBC
 
 @enduml

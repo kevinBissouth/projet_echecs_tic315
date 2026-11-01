@@ -1,67 +1,62 @@
 @startuml composants-architecture
-' Diagramme de composants (jalon J5) : les briques du système et leurs interfaces.
-' Chaque composant interne regroupe les classes d'un package de la conception
-' (packages-architecture.puml, classes-conception-*.puml).
+' Diagramme de composants (jalon J5), sur le modèle de la figure 12 du cours : des
+' services qui se décrivent par leurs interfaces.
 ' Interface fournie : trait plein vers l'interface. Interface requise : flèche
-' pointillée vers l'interface (cours, §2.4.1). Les interfaces nommées sont celles de
-' la conception : ce sont les points de remplacement du système.
-' Dans un même processus, Serveur web → Contrôle → Métier sont de simples
-' dépendances (flèche pointillée sans interface, permise par le cours) : ces
-' couches ne sont pas destinées à être remplacées.
-' Les composants « externes » ne sont pas développés par l'équipe.
+' pointillée vers l'interface. Les dépendances entre composants passent par des
+' interfaces, jamais par des classes internes (cours, §2.4.2).
+' ObservateurPartie est le patron Observateur demandé par le sujet : ce sont les écrans
+' des deux joueurs de la partie. Le système ne gère pas de spectateurs.
 
 skinparam componentStyle uml2
-skinparam nodesep 45
-skinparam ranksep 45
+skinparam nodesep 50
+skinparam ranksep 55
 
-component "Site web\n(HTML, CSS, JavaScript)" as Site
-interface "API web\n(HTTP, WebSocket)" as ApiWeb
-
-package "Application Spring Boot" {
-  component "Serveur web\n(ihm)" as ServeurWeb
-  interface "ObservateurPartie" as IObservateur
-  component "Contrôle\n(controle)" as Controle
-  component "Métier\n(metier : partie, jeu, joueur)" as Metier
-
-  interface "MoteurEchecs" as IMoteur
-  interface "ServiceAuthentification" as IAuthentification
-  interface "DepotParties" as IDepotParties
-  interface "DepotJoueurs" as IDepotJoueurs
-
-  component "Moteur\n(AdaptateurStockfish)" as AdaptateurMoteur
-  component "Authentification\n(AdaptateurOpenIdConnect)" as AdaptateurAuthentification
-  component "Persistance\n(DepotPartiesSql, DepotJoueursSql)" as Persistance
-}
-
-interface "UCI" as Uci
-interface "OpenID Connect" as Oidc
-component "Stockfish" <<externe>> as Stockfish
-component "Fournisseur d'identité" <<externe>> as Fournisseur
+component "Application Web\n(Front)" as Front
+component "Service Parties" as ServiceParties
+component "Service Comptes" as ServiceComptes
+component "Adaptateur Moteur" as AdaptateurMoteur
+component "Adaptateur Authentification" as AdaptateurAuthentification
+component "Service Persistance" as Persistance
+component "Stockfish" <<external>> as Stockfish
+component "Fournisseur d'identité" <<external>> as Fournisseur
 database "Base de données" as Base
 
-Site ..> ApiWeb
-ApiWeb -- ServeurWeb
+interface "IPartie" as IPartie
+interface "ICompte" as ICompte
+interface "ObservateurPartie" as IObservateur
+interface "CalculClassement" as ICalcul
+interface "MoteurEchecs" as IMoteur
+interface "ServiceAuthentification" as IAuthentification
+interface "DepotParties" as IDepotParties
+interface "DepotJoueurs" as IDepotJoueurs
+interface "UCI" as Uci
+interface "OpenID Connect" as Oidc
 
-ServeurWeb ..> Controle
-Controle .right.> Metier
-ServeurWeb -right- IObservateur
-Metier .up.> IObservateur
+Front ..> IPartie : <<use>>
+Front ..> ICompte : <<use>>
+Front -right- IObservateur
+ServiceParties ..> IObservateur
 
-Controle ..> IMoteur
-Controle ..> IAuthentification
-Controle ..> IDepotParties
-Controle ..> IDepotJoueurs
+ServiceParties -up- IPartie
+ServiceComptes -up- ICompte
+ServiceComptes -left- ICalcul
+ServiceParties ..> ICalcul
 
-IMoteur -- AdaptateurMoteur
-IAuthentification -- AdaptateurAuthentification
-IDepotParties -- Persistance
-IDepotJoueurs -- Persistance
-Persistance ..> Metier
+ServiceParties ..> IMoteur
+ServiceParties ..> IDepotParties
+ServiceComptes ..> IAuthentification
+ServiceComptes ..> IDepotJoueurs
+ServiceComptes ..> IDepotParties
+
+AdaptateurMoteur -up- IMoteur
+AdaptateurAuthentification -up- IAuthentification
+Persistance -up- IDepotParties
+Persistance -up- IDepotJoueurs
 
 AdaptateurMoteur ..> Uci
-Uci -- Stockfish
+Stockfish -up- Uci
 AdaptateurAuthentification ..> Oidc
-Oidc -- Fournisseur
-Persistance ..> Base : JDBC
+Fournisseur -up- Oidc
+Persistance ..> Base
 
 @enduml

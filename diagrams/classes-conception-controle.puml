@@ -44,6 +44,10 @@ package controle {
     - faireJouerOrdinateur()
   }
 
+  ' Ce que le site peut demander : les opérations publiques de chaque contrôleur.
+  interface IPartie <<interface>>
+  interface ICompte <<interface>>
+
   class ControleurCompte {
     + creerCompte(pseudo : String, email : String) : Joueur
     + seConnecter(jeton : String) : Joueur
@@ -102,12 +106,14 @@ package metier {
 }
 
 ObservateurPartie <|.. VuePartie
+IPartie <|.. ControleurPartie
+ICompte <|.. ControleurCompte
 MoteurEchecs <|.. AdaptateurStockfish
 ServiceAuthentification <|.. AdaptateurOpenIdConnect
 DepotParties <|.. DepotPartiesSql
 DepotJoueurs <|.. DepotJoueursSql
 
-VuePartie "1" --> "1\ncontroleur" ControleurPartie
+VuePartie "1" --> "1\ncontroleur" IPartie
 ControleurPartie "0..1" --> "1\nvue" ObservateurPartie
 ControleurPartie "0..1" --> "1\njoueurConnecte" Joueur
 ControleurPartie "0..*" --> "0..1\npartieCourante" Partie
