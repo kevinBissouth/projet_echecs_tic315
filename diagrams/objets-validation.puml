@@ -4,6 +4,8 @@
 ' après 1. e4 d5 2. exd5. Seules les cases et pièces concernées sont montrées.
 ' Points vérifiés : Participation, historique ordonné, rôles depart / arrivee /
 ' pieceJouee / piecePrise, pièce prise qui n'occupe plus de case, trait dérivé.
+' Un lien est un trait plein, sans multiplicité ni symbole (cours, §2.2) : les losanges
+' et les flèches appartiennent au diagramme de classes.
 
 title Situation après 1. e4 d5 2. exd5 (vue partielle du plateau)
 
@@ -95,45 +97,43 @@ partie -- alice
 partie -- bob
 (partie, alice) .. pAlice
 (partie, bob) .. pBob
-partie --> "createur" alice
-partie --> c10p5
-alice *-- rapideAlice : [categorie = RAPIDE]
-bob *-- rapideBob : [categorie = RAPIDE]
+partie -- alice : createur
+partie -- c10p5
+alice -- rapideAlice : [categorie = RAPIDE]
+bob -- rapideBob : [categorie = RAPIDE]
 
-' Plateau (composition) : cases et pièces montrées. Les liens sont écrits
-' « e2 --* plateau » pour placer le plateau en bas ; le losange reste
-' côté tout (le plateau), comme l'exige la composition.
-e2 --* plateau
-e4 --* plateau
-d7 --* plateau
-d5 --* plateau
-pionBlancE --* plateau
-pionNoirD --* plateau
+' Plateau : cases et pièces montrées.
+e2 -- plateau
+e4 -- plateau
+d7 -- plateau
+d5 -- plateau
+pionBlancE -- plateau
+pionNoirD -- plateau
 
 ' Seul le pion blanc occupe une case ; le pion noir pris n'en occupe plus
 pionBlancE -- d5 : occupe
 
 ' Historique ordonné des coups
-partie *-- coup1
-partie *-- coup2
-partie *-- coup3
+partie -- coup1
+partie -- coup2
+partie -- coup3
 coup1 -[hidden]right- coup2
 coup2 -[hidden]right- coup3
 
-coup1 --> e2 : depart
-coup1 --> e4 : arrivee
-coup1 --> pionBlancE : pieceJouee
+coup1 -- e2 : depart
+coup1 -- e4 : arrivee
+coup1 -- pionBlancE : pieceJouee
 
-coup2 --> d7 : depart
-coup2 --> d5 : arrivee
-coup2 --> pionNoirD : pieceJouee
+coup2 -- d7 : depart
+coup2 -- d5 : arrivee
+coup2 -- pionNoirD : pieceJouee
 
-coup3 --> e4 : depart
-coup3 --> d5 : arrivee
-coup3 --> pionBlancE : pieceJouee
-coup3 --> pionNoirD : piecePrise
+coup3 -- e4 : depart
+coup3 -- d5 : arrivee
+coup3 -- pionBlancE : pieceJouee
+coup3 -- pionNoirD : piecePrise
 
-' Composition partie-plateau, déclarée en dernier pour ne pas contraindre la disposition
-partie *-- plateau
+' Lien partie-plateau, déclaré en dernier pour ne pas contraindre la disposition
+partie -- plateau
 
 @enduml
