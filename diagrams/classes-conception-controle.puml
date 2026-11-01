@@ -1,0 +1,124 @@
+@startuml classes-conception-controle
+' Diagramme de classes de conception — packages ihm, controle et infrastructure
+' (jalon J4). Décisions justifiées dans docs/conception.md :
+' - MVC : la vue appelle le contrôleur ; la partie (modèle) prévient la vue par le
+'   patron Observateur, sans la connaître ;
+' - Contrôleur (GRASP) : un ControleurPartie par session de joueur reçoit les
+'   actions et délègue au métier ; il connaît le joueur connecté et sa partie ;
+' - Adaptateur : AdaptateurStockfish traduit MoteurEchecs en protocole UCI,
+'   AdaptateurOpenIdConnect traduit ServiceAuthentification en OpenID Connect ;
+' - inversion des dépendances (SOLID) et Fabrication pure (GRASP) : les interfaces
+'   des services externes et des dépôts appartiennent à controle, leurs
+'   implémentations à infrastructure ; le métier n'en dépend pas.
+' Les classes de metier ne montrent que leur nom (voir classes-conception-*.puml).
+
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 70
+' Boîtes des classes de metier assez larges pour que leurs rôles ne se superposent pas.
+skinparam minClassWidth 150
+
+package ihm {
+  class VuePartie {
+    + actualiser(partie : Partie)
+    + afficherRefus(motif : String)
+  }
+}
+
+package controle {
+  class ControleurPartie {
+    - horloge : Clock
+    + creerPartie(cadence : Cadence, couleur : Couleur [0..1], invite : Joueur [0..1]) : PartieEntreJoueurs
+    + consulterPartiesOuvertes() : List<PartieEntreJoueurs>
+    + rejoindrePartie(partie : PartieEntreJoueurs)
+    + refuserInvitation(partie : PartieEntreJoueurs)
+    + annulerPartie()
+    + jouerCoup(depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
+    + proposerNulle()
+    + repondreNulle(accepte : boolean)
+    + abandonner()
+    + demarrerPartieContreOrdinateur(force : int, couleur : Couleur)
+    + revoirPartie(partie : Partie) : List<Coup>
+    - faireJouerOrdinateur()
+  }
+
+  class ControleurCompte {
+    + creerCompte(pseudo : String, email : String) : Joueur
+    + seConnecter(jeton : String) : Joueur
+    + consulterClassements(joueur : Joueur) : Map<CategorieCadence, Classement>
+    + consulterComptes() : List<Joueur>
+    + suspendre(joueur : Joueur)
+    + reactiver(joueur : Joueur)
+  }
+
+  interface MoteurEchecs <<interface>> {
+    + calculerCoup(position : String, force : int) : String
+  }
+
+  interface ServiceAuthentification <<interface>> {
+    + verifierIdentite(jeton : String) : String
+  }
+
+  interface DepotParties <<interface>> {
+    + enregistrer(partie : Partie)
+    + partiesOuvertes() : List<PartieEntreJoueurs>
+    + partieActiveDe(joueur : Joueur) : Partie [0..1]
+    + partiesTermineesDe(joueur : Joueur) : List<Partie>
+  }
+
+  interface DepotJoueurs <<interface>> {
+    + enregistrer(joueur : Joueur)
+    + trouverParEmail(email : String) : Joueur [0..1]
+    + pseudoExiste(pseudo : String) : boolean
+    + tous() : List<Joueur>
+  }
+
+  class MoteurIndisponibleException
+}
+
+package infrastructure {
+  class AdaptateurStockfish {
+    - delaiDeReponse : Duration {readOnly}
+    + calculerCoup(position : String, force : int) : String
+    - envoyerCommande(commande : String)
+    - lireMeilleurCoup() : String
+  }
+
+  class AdaptateurOpenIdConnect {
+    + verifierIdentite(jeton : String) : String
+  }
+
+  class DepotPartiesSql
+  class DepotJoueursSql
+}
+
+package metier {
+  class Partie
+  class Joueur
+  interface ObservateurPartie <<interface>>
+  interface CalculClassement <<interface>>
+}
+
+ObservateurPartie <|.. VuePartie
+MoteurEchecs <|.. AdaptateurStockfish
+ServiceAuthentification <|.. AdaptateurOpenIdConnect
+DepotParties <|.. DepotPartiesSql
+DepotJoueurs <|.. DepotJoueursSql
+
+VuePartie "1" --> "1\ncontroleur" ControleurPartie
+ControleurPartie "0..1" --> "1\nvue" ObservateurPartie
+ControleurPartie "0..1" --> "1\njoueurConnecte" Joueur
+ControleurPartie "0..*" --> "0..1\npartieCourante" Partie
+ControleurPartie "0..*" --> "1\nmoteur" MoteurEchecs
+ControleurPartie "0..*" --> "1\ncalcul" CalculClassement
+ControleurPartie "0..*" --> "1\ndepotParties" DepotParties
+ControleurPartie "0..*" --> "1\ndepotJoueurs" DepotJoueurs
+ControleurCompte "0..*" --> "1\nauthentification" ServiceAuthentification
+ControleurCompte "0..*" --> "1\ndepotJoueurs" DepotJoueurs
+ControleurCompte "0..*" --> "1\ndepotParties" DepotParties
+
+MoteurEchecs ..> MoteurIndisponibleException : <<throws>>
+
+@enduml

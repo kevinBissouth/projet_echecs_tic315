@@ -1,0 +1,68 @@
+@startuml sequence-jouer-coup
+' Séquence de conception — UC8 Jouer un coup (jalon J3).
+' GRASP : le contrôleur reçoit l'action et délègue ; la partie (expert de l'historique)
+' vérifie le trait et les nulles automatiques ; le plateau (expert des cases) vérifie
+' la légalité ; chaque pièce connaît ses propres déplacements (polymorphisme).
+' Barres d'activation : « ++ » active le destinataire, « -- » désactive l'émetteur
+' du retour. Les acteurs n'en ont pas : seuls les objets du système traitent.
+' Messages de création en pointillé (cours, §3.3.1).
+
+autonumber
+hide footbox
+
+actor "Joueur" as joueur
+participant ":ControleurPartie" as controleur
+participant "partie : Partie" as partie
+participant ":Plateau" as plateau
+participant "piece : Piece" as piece
+participant "pJoueur : Participation" as pJoueur
+participant "pAdversaire : Participation" as pAdversaire
+actor "Adversaire" as adversaire
+
+joueur -> controleur ++ : jouerCoup(depart, arrivee, promotion)
+controleur -> partie ++ : jouerCoup(joueur, depart, arrivee, promotion)
+partie -> partie ++ : verifierTrait(joueur)
+deactivate partie
+partie -> plateau ++ : estLegal(depart, arrivee)
+plateau -> piece ++ : deplacementsPossibles(plateau)
+piece --> plateau -- : cases
+plateau -> plateau ++ : laisseRoiEnEchec(depart, arrivee)
+deactivate plateau
+plateau --> partie -- : legal
+
+alt pas son trait ou coup illégal
+  partie --> controleur : refus(motif)
+  controleur --> joueur : afficher le motif du refus
+else coup légal
+  partie -> plateau ++ : deplacer(depart, arrivee, promotion)
+  note right : gère roque, prise en passant\net promotion (RG2)
+  plateau --> partie -- : piecePrise [0..1]
+  create ":Coup" as coup
+  partie --> coup : <<create>> Coup(numero, depart, arrivee, piece, piecePrise)
+  opt partie entre joueurs
+    partie -> pJoueur ++ : arreterPendule()
+    deactivate pJoueur
+    partie -> pAdversaire ++ : demarrerPendule()
+    deactivate pAdversaire
+  end
+  opt une nulle proposée par l'adversaire attend une réponse
+    partie -> partie ++ : refuserNulle(joueur)
+    note right : jouer sans répondre\nvaut refus (RG4)
+    deactivate partie
+  end
+  partie -> plateau ++ : situationFinale(couleurAdverse)
+  plateau --> partie -- : motif [0..1]
+  partie -> partie ++ : verifierNullesAutomatiques()
+  deactivate partie
+  opt coup terminal
+    partie -> partie ++ : terminer(resultat, motif)
+    deactivate partie
+  end
+  partie --> controleur : coup
+  controleur --> joueur : afficher le nouveau plateau
+  controleur ->> adversaire : notifier : nouveau plateau
+end
+deactivate partie
+deactivate controleur
+
+@enduml

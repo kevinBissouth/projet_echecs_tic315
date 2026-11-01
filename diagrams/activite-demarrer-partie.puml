@@ -1,0 +1,76 @@
+@startuml activite-demarrer-partie
+' Diagramme d'activités — de la création d'une partie entre joueurs à son début (jalon J3).
+' Couvre UC3 (créer), UC4 (rejoindre), UC5 (annuler, refuser l'invitation), RG8, RG11, RG13, RG15.
+' Chaque intervenant agit dans son couloir ; le flux passe d'un couloir à l'autre
+' à chaque échange. Chaque décision a des gardes exhaustives ; chaque chemin se
+' termine par un nœud final.
+
+title De la création d'une partie entre joueurs à son début
+
+|Créateur|
+start
+:Choisir la cadence et sa couleur;
+if (Partie sur invitation ?) then ([oui])
+  :Désigner le joueur invité;
+else ([non])
+endif
+:Demander la création de la partie;
+
+|Système|
+if (Le créateur peut-il jouer ?\n(compte actif RG8, aucune partie\nen attente ou en cours RG11)) then ([non])
+  :Refuser la création;
+  |Créateur|
+  :Prendre connaissance du refus;
+  stop
+else ([oui])
+endif
+|Système|
+:Créer la partie « en attente »
+et la participation du créateur;
+:Publier la partie ouverte
+ou notifier le joueur invité;
+
+switch (Premier événement reçu ?)
+case ([le créateur annule])
+  |Créateur|
+  :Annuler sa partie;
+  |Système|
+  :Clore la partie sans résultat (RG15);
+  :Retirer la partie publiée
+  ou prévenir l'invité;
+  stop
+case ([le créateur est suspendu\npar l'administrateur (RG8)])
+  :Clore la partie sans résultat (RG15);
+  :Retirer la partie publiée
+  ou prévenir l'invité;
+  stop
+case ([l'invité refuse])
+  |Adversaire|
+  :Refuser l'invitation;
+  |Système|
+  :Clore la partie sans résultat (RG15);
+  :Notifier le créateur du refus;
+  |Créateur|
+  :Prendre connaissance du refus;
+  stop
+case ([un adversaire autorisé\nrejoint (RG8, RG11, RG13)])
+  |Adversaire|
+  :Rejoindre la partie;
+  |Système|
+  :Attribuer les couleurs;
+  :Créer la participation de l'adversaire;
+  :Démarrer la partie
+  et la pendule des blancs;
+  fork
+    |Créateur|
+    :Recevoir la notification :
+    adversaire arrivé;
+  fork again
+    |Adversaire|
+    :Voir le plateau de départ;
+  end fork
+  ' Chaque branche se termine par son propre nœud final : pas de fusion inutile.
+  stop
+endswitch
+
+@enduml

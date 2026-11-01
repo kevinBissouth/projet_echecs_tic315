@@ -1,0 +1,82 @@
+@startuml classes-enumerations
+' Vue complémentaire du modèle du domaine (jalons J2 et J3) : quelles classes
+' utilisent quelles énumérations. Un modèle, plusieurs diagrammes (cours, §1.5) :
+' les classes n'y montrent que leur nom ; leur contenu est dans classes-domaine.puml.
+' Dépendance (flèche pointillée, cours figure 9) : la classe utilise l'énumération
+' comme type d'attribut, de paramètre, de retour ou de qualificatif. L'étiquette
+' indique où. Pas d'association : une valeur d'énumération n'est pas un objet.
+
+title Vue complémentaire : classes et énumérations qu'elles utilisent
+
+left to right direction
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 140
+
+class Joueur
+abstract class Partie
+class PartieContreOrdinateur
+class Participation
+class Cadence
+class Plateau
+abstract class Piece
+
+enum EtatCompte <<enumeration>> {
+  ACTIF
+  SUSPENDU
+}
+enum EtatPartie <<enumeration>> {
+  EN_ATTENTE
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+enum Resultat <<enumeration>> {
+  VICTOIRE_BLANCS
+  VICTOIRE_NOIRS
+  NULLE
+}
+enum MotifFin <<enumeration>> {
+  MAT
+  PAT
+  ABANDON
+  TEMPS_ECOULE
+  ACCORD
+  TRIPLE_REPETITION
+  CINQUANTE_COUPS
+  MATERIEL_INSUFFISANT
+}
+enum Couleur <<enumeration>> {
+  BLANC
+  NOIR
+}
+enum CategorieCadence <<enumeration>> {
+  BULLET
+  BLITZ
+  RAPIDE
+}
+enum TypePromotion <<enumeration>> {
+  DAME
+  TOUR
+  FOU
+  CAVALIER
+}
+
+Joueur ..> EtatCompte : etat
+Joueur ..> CategorieCadence : qualificatif [categorie]
+Cadence ..> CategorieCadence : categorie
+Partie ..> EtatPartie : etat
+Partie ..> Resultat : resultat
+Partie ..> MotifFin : motifFin
+Partie ..> Couleur : /trait
+Partie ..> TypePromotion : jouerCoup(promotion)
+PartieContreOrdinateur ..> TypePromotion : jouerCoupOrdinateur(promotion)
+Participation ..> Couleur : couleur
+Piece ..> Couleur : couleur
+Plateau ..> MotifFin : situationFinale() : retour
+Plateau ..> Couleur : situationFinale(couleur)
+Plateau ..> TypePromotion : deplacer(promotion)
+
+@enduml

@@ -1,0 +1,77 @@
+@startuml sequence-conception-jouer-coup
+' Séquence de conception détaillée — UC8 Jouer un coup, partie entre joueurs
+' (jalon J4). Elle montre les patrons de la conception à l'œuvre :
+' - MVC : la vue transmet l'action au contrôleur (GRASP Contrôleur) ;
+' - État : la partie délègue l'événement jouerCoup à son état courant ; dans un
+'   autre état que « en cours », l'état par défaut lève TransitionInterditeException ;
+' - Stratégie : en fin de partie, le calcul Elo donne la variation de chaque
+'   classement (RG6) ;
+' - Observateur : la partie notifie ses vues abonnées, dont celle de l'adversaire.
+' La vérification et l'exécution du coup sont détaillées dans sequence-jouer-coup
+' (J3) ; seuls les messages propres à la conception figurent ici.
+' Chaque message vers un objet est une opération des classes de conception
+' (classes-conception-*.puml).
+' « order » place l'état créé en cours de route à côté de l'état courant.
+
+autonumber
+hide footbox
+
+actor "Joueur" as joueur order 10
+participant "vue : VuePartie" as vue order 20
+participant ":ControleurPartie" as controleur order 30
+participant "partie : PartieEntreJoueurs" as partie order 40
+participant "enCours : EtatEnCours" as enCours order 50
+participant "calcul : CalculElo" as calcul order 60
+participant "classementBlancs : Classement" as classementBlancs order 70
+participant "classementNoirs : Classement" as classementNoirs order 80
+participant "j : Joueur" as j order 90
+participant "vueAdversaire : VuePartie" as vueAdversaire order 100
+actor "Adversaire" as adversaire order 110
+
+joueur -> vue : déplacer une pièce
+vue -> controleur ++ : jouerCoup(depart, arrivee, promotion)
+controleur -> partie ++ : jouerCoup(joueurConnecte, depart, arrivee, promotion)
+partie -> enCours ++ : jouerCoup(partie, joueur, depart, arrivee, promotion)
+note right of enCours : État : seul EtatEnCours\naccepte jouerCoup
+enCours -> partie ++ : executerCoup(joueur, depart, arrivee, promotion)
+ref over partie, enCours : Vérifier et exécuter le coup (sequence-jouer-coup, J3)\nverifierTrait, estLegal, deplacer, pendules, nulle refusée,\nsituationFinale, nulles automatiques
+partie --> enCours -- : coup
+
+opt coup terminal (mat, pat ou nulle automatique)
+  enCours -> partie ++ : terminer(resultat, motif)
+  create "terminee : EtatTerminee" as terminee order 55
+  partie --> terminee : <<create>>
+  partie -> partie ++ : changerEtat(terminee)
+  deactivate partie
+  loop chaque participant j
+    partie -> j ++ : liberer()
+    deactivate j
+  end
+  partie -> partie ++ : mettreAJourClassements()
+  note right : Stratégie : la formule\nest dans CalculElo (RG6)
+  partie -> calcul ++ : variation(pointsBlancs, pointsNoirs, scoreBlancs)
+  calcul --> partie -- : variationBlancs
+  partie -> classementBlancs ++ : modifierPoints(variationBlancs)
+  deactivate classementBlancs
+  partie -> calcul ++ : variation(pointsNoirs, pointsBlancs, 1 - scoreBlancs)
+  calcul --> partie -- : variationNoirs
+  partie -> classementNoirs ++ : modifierPoints(variationNoirs)
+  deactivate classementNoirs
+  deactivate partie
+  deactivate partie
+end
+enCours --> partie -- : coup
+
+partie -> partie ++ : notifierObservateurs()
+loop chaque observateur abonné (les vues des deux joueurs)
+  partie -> vueAdversaire ++ : actualiser(partie)
+  vueAdversaire -> adversaire : afficher le nouveau plateau
+  deactivate vueAdversaire
+end
+deactivate partie
+
+partie --> controleur -- : coup
+controleur --> vue -- : coup
+vue -> joueur : afficher le nouveau plateau
+
+@enduml

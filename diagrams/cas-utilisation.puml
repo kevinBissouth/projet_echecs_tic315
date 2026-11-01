@@ -1,0 +1,87 @@
+@startuml cas-utilisation
+' Diagramme de cas d'utilisation — Jeu d'échecs en ligne (jalon J1)
+' La connexion est une précondition des cas du joueur, pas un include :
+' l'inclure partout encombrerait le diagramme sans rien apprendre au lecteur.
+' Seule exception : la création de compte se termine par une connexion automatique.
+' Mise en page (orientation gauche-droite) : le nombre de tirets fixe la colonne.
+' Colonne 1 : cas principaux ; colonne 2 : extensions et cas inclus, à droite de
+' leur cas de base ; colonne 3 : acteurs externes. Les flèches d'extension sont
+' écrites « base <.. extension » pour garder l'extension à droite ; la pointe
+' reste sur le cas de base, comme l'exige UML.
+
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Joueur" as Joueur
+actor "Administrateur" as Admin
+actor "Service d'authentification" as Auth <<système>>
+actor "Moteur d'échecs\n(Stockfish)" as Moteur <<système>>
+
+rectangle "Jeu d'échecs en ligne" {
+  ' Compte
+  usecase "Se connecter" as UC1
+  usecase "Créer un compte" as UC2
+  ' Préparation d'une partie
+  usecase "Créer une partie" as UC3
+  usecase "Rejoindre une partie" as UC4
+  usecase "Annuler une partie" as UC5
+  ' Jeu
+  usecase "Jouer une partie\ncontre un joueur" as UC6
+  usecase "Proposer la nulle" as UC9
+  usecase "Abandonner la partie" as UC10
+  usecase "Jouer un coup" as UC8
+  usecase "Jouer une partie\ncontre l'ordinateur" as UC7
+  ' Consultation
+  usecase "Consulter ses classements" as UC11
+  usecase "Revoir une partie terminée" as UC12
+  ' Administration
+  usecase "Gérer les comptes" as UC13
+}
+
+' Acteurs principaux : le joueur est relié à chaque cas qu'il déclenche lui-même
+Joueur -- UC1
+Joueur -- UC3
+Joueur -- UC4
+Joueur -- UC5
+Joueur -- UC6
+Joueur -- UC7
+Joueur -- UC11
+Joueur -- UC12
+Joueur -- UC2
+Joueur -- UC9
+Joueur -- UC10
+
+Admin -- UC1
+Admin -- UC13
+
+' Inclusion : un compte créé est aussitôt connecté
+UC1 <.. UC2 : <<include>>
+
+' Extensions
+UC6 <.. UC9 : <<extend>>\n[le joueur propose la nulle]
+UC6 <.. UC10 : <<extend>>\n[le joueur abandonne]
+UC7 <.. UC10 : <<extend>>\n[le joueur abandonne]
+
+' Inclusions : le coup est commun aux deux types de partie
+UC6 ..> UC8 : <<include>>
+UC7 ..> UC8 : <<include>>
+
+' Précondition commune plutôt qu'un include partout : sur un site web, on se
+' connecte une fois par session, pas à chaque action (un include serait exécuté
+' à chaque fois). « Créer un compte » inclut « Se connecter » car la création
+' se termine toujours par une connexion automatique.
+note as Precondition
+  <b>Précondition commune</b>
+  Tous les cas, sauf « Créer un compte »
+  et « Se connecter », exigent que l'acteur
+  soit connecté (voir les fiches).
+  La connexion a lieu une fois par session :
+  ce n'est pas une étape de chaque cas,
+  d'où l'absence d'include.
+end note
+
+' Acteurs secondaires, une colonne plus loin
+UC1 --- Auth
+UC7 --- Moteur
+
+@enduml

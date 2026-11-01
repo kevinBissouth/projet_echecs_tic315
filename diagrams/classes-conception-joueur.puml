@@ -1,0 +1,77 @@
+@startuml classes-conception-joueur
+' Diagramme de classes de conception — package metier.joueur (jalon J4).
+' Ce package ne dépend d'aucun autre : c'est metier.partie qui dépend de lui.
+' Décisions justifiées dans docs/conception.md :
+' - navigabilité Partie → Joueur seulement, pour éviter un cycle entre packages ;
+'   Joueur garde un indicateur « occupe », tenu à jour par la partie, qui suffit à
+'   peutJouer() (RG8, RG11) sans parcourir l'historique de ses parties ;
+' - l'association qualifiée de l'analyse devient une Map<CategorieCadence, Classement>
+'   (un classement par famille de cadence, créés avec le joueur) ;
+' - patron Stratégie : le calcul des points est délégué à CalculClassement (RG6).
+'   Formule retenue : Elo, K = 20, 1500 points au départ ; score 1 pour une victoire,
+'   0,5 pour une nulle, 0 pour une défaite.
+
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam nodesep 70
+skinparam ranksep 60
+
+package metier.joueur {
+
+  class Joueur {
+    - pseudo : String {readOnly}
+    - email : String {readOnly}
+    - etat : EtatCompte = ACTIF
+    - occupe : boolean = false
+    + Joueur(pseudo : String, email : String)
+    + peutJouer() : boolean
+    + suspendre()
+    + reactiver()
+    + occuper()
+    + liberer()
+    + classement(categorie : CategorieCadence) : Classement
+  }
+
+  class Classement {
+    - {static} POINTS_INITIAUX : int = 1500 {readOnly}
+    - points : int = POINTS_INITIAUX
+    + modifierPoints(variation : int)
+  }
+
+  interface CalculClassement <<interface>> {
+    + variation(points : int, pointsAdversaire : int, score : double) : int
+  }
+
+  class CalculElo {
+    - {static} K_PAR_DEFAUT : int = 20 {readOnly}
+    - {static} ECART_DE_REFERENCE : double = 400 {readOnly}
+    - k : int {readOnly}
+    + CalculElo()
+    + CalculElo(k : int)
+    + variation(points : int, pointsAdversaire : int, score : double) : int
+    - scoreAttendu(points : int, pointsAdversaire : int) : double
+  }
+
+  enum EtatCompte <<enumeration>> {
+    ACTIF
+    SUSPENDU
+  }
+
+  enum CategorieCadence <<enumeration>> {
+    BULLET
+    BLITZ
+    RAPIDE
+  }
+}
+
+Joueur [categorie : CategorieCadence] "\n\n1" *--> "1\nclassement" Classement
+CalculClassement <|.. CalculElo
+
+note right of CalculElo
+  Elo : scoreAttendu = 1 / (1 + 10^((pointsAdversaire − points) / 400))
+  variation = arrondi(k × (score − scoreAttendu))
+  Exemple : 1500 bat 1480 → +9 ; 1480 perd contre 1500 → −9
+end note
+
+@enduml

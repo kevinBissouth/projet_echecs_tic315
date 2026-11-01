@@ -1,0 +1,48 @@
+@startuml sequence-rejoindre-partie
+' Séquence de conception — UC4 Rejoindre une partie (jalon J3).
+' Fait passer la partie de EN_ATTENTE à EN_COURS (diagramme d'états), crée la
+' participation du nouvel arrivant (classe d'association) et vérifie RG8, RG11 et RG13.
+' Le créateur est prévenu par un message asynchrone : le système n'attend pas sa réponse.
+' Barres d'activation sur les objets du système uniquement, pas sur les acteurs.
+
+autonumber
+hide footbox
+
+actor "Joueur\n(rejoint)" as bob
+participant ":ControleurPartie" as controleur
+participant "partie : PartieEntreJoueurs" as partie
+participant "bob : Joueur" as compteBob
+participant "pCreateur : Participation" as pCreateur
+actor "Joueur\n(créateur)" as createur
+
+bob -> controleur ++ : rejoindrePartie(partie)
+controleur -> partie ++ : rejoindre(bob)
+partie -> partie ++ : peutEtreRejointePar(bob)
+note right : RG13 : état EN_ATTENTE,\npartie ouverte ou bob invité,\nbob n'est pas le créateur
+deactivate partie
+partie -> compteBob ++ : peutJouer()
+note right of compteBob : compte actif (RG8)\net aucune autre partie en\nattente ou en cours (RG11)
+compteBob --> partie -- : autorise
+
+alt conditions remplies
+  partie -> partie ++ : attribuerCouleurs()
+  deactivate partie
+  create "pBob : Participation" as pBob
+  partie --> pBob ++ : <<create>> Participation(bob, couleur)
+  deactivate pBob
+  partie -> pCreateur ++ : definirCouleur(couleurOpposee)
+  deactivate pCreateur
+  partie -> partie ++ : demarrer()
+  note right : état EN_COURS, dateDebut renseignée,\npendule des blancs démarrée\n(activité d'entrée de « En cours »)
+  deactivate partie
+  partie --> controleur : partie démarrée
+  controleur --> bob : afficher le plateau
+  controleur ->> createur : notifier : adversaire arrivé
+else refus
+  partie --> controleur : refus(motif)
+  controleur --> bob : afficher le motif du refus
+end
+deactivate partie
+deactivate controleur
+
+@enduml

@@ -1,0 +1,91 @@
+@startuml objets-impossible
+' Diagrammes d'objets volontairement invalides (jalon J2).
+' Cas A et B : refusés par une multiplicité du diagramme de classes.
+' Cas C : accepté par les multiplicités mais faux pour le métier ; il justifie
+' une contrainte OCL (J4).
+
+title Situations que le modèle doit refuser (vues partielles :\nseuls les liens utiles à chaque démonstration sont montrés)
+
+' ---- Cas A : trois participants ----
+
+object "<u>partieA : PartieEntreJoueurs</u>" as partieA {
+  etat = EN_COURS
+}
+object "<u>alice : Joueur</u>" as aliceA
+object "<u>bob : Joueur</u>" as bobA
+object "<u>carla : Joueur</u>" as carlaA
+
+object "<u>pAliceA : Participation</u>" as pAliceA {
+  couleur = BLANC
+}
+object "<u>pBobA : Participation</u>" as pBobA {
+  couleur = NOIR
+}
+object "<u>pCarlaA : Participation</u>" as pCarlaA {
+  couleur = NOIR
+}
+partieA -- aliceA
+partieA -- bobA
+partieA -- carlaA
+(partieA, aliceA) .. pAliceA
+(partieA, bobA) .. pBobA
+(partieA, carlaA) .. pCarlaA
+
+note bottom of partieA
+  <b>Cas A — refusé par une multiplicité</b>
+  Trois participants pour une même partie :
+  viole la multiplicité <b>1..2 participants</b>
+  de l'association Partie — Joueur.
+end note
+
+' ---- Cas B : deux pièces sur une case ----
+
+object "<u>e4 : Case</u>" as e4B {
+  colonne = 'e'
+  rangee = 4
+}
+object "<u>pionBlanc : Pion</u>" as pionBlancB {
+  couleur = BLANC
+}
+object "<u>cavalierNoir : Cavalier</u>" as cavalierNoirB {
+  couleur = NOIR
+}
+
+pionBlancB -- e4B : occupe
+cavalierNoirB -- e4B : occupe
+
+note bottom of e4B
+  <b>Cas B — refusé par une multiplicité</b>
+  Deux pièces sur la même case :
+  viole la multiplicité <b>0..1</b> (côté Piece)
+  de l'association occupe.
+end note
+
+' ---- Cas C : deux joueurs avec les blancs ----
+
+object "<u>partieC : PartieEntreJoueurs</u>" as partieC {
+  etat = EN_COURS
+}
+object "<u>alice : Joueur</u>" as aliceC
+object "<u>bob : Joueur</u>" as bobC
+object "<u>pAlice : Participation</u>" as pAliceC {
+  couleur = BLANC
+}
+object "<u>pBob : Participation</u>" as pBobC {
+  couleur = BLANC
+}
+
+partieC -- aliceC
+partieC -- bobC
+(partieC, aliceC) .. pAliceC
+(partieC, bobC) .. pBobC
+
+note bottom of partieC
+  <b>Cas C — accepté par les multiplicités, faux pour le métier</b>
+  Deux participants : la multiplicité 1..2 est respectée,
+  mais les deux jouent les blancs. Seule une contrainte
+  OCL peut l'interdire (J4) : les participants d'une partie
+  entre joueurs ont des couleurs différentes.
+end note
+
+@enduml

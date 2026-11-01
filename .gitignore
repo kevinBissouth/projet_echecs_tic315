@@ -1,0 +1,5 @@
+# Documents are versioned as PDF only
+docs/*.md
+
+# Python
+__pycache__/

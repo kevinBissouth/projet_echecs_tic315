@@ -1,0 +1,234 @@
+@startuml classes-domaine
+' Diagramme de classes d'analyse (modèle du domaine) — Jeu d'échecs en ligne (jalons J2 et J3)
+' Modèle d'analyse : uniquement des concepts du jeu, aucune classe technique.
+' Opérations : celles révélées par les diagrammes de séquence et les événements
+' du diagramme d'états de la partie (J3) : un événement d'appel est une opération ;
+' s'y ajoutent les opérations de ses actions : suspendre() et reactiver() (RG8, UC13),
+' modifierPoints() (mise à jour du classement ; la formule sera choisie en J4).
+' Privées (-) quand seule la classe elle-même les appelle, publiques (+) sinon.
+' Les noms de rôle (participants, coups, depart...) servent à la navigation OCL (J4).
+' L'unicité entre objets (pseudo, email : RG12) est une contrainte OCL, pas {unique} :
+' en UML, {unique} interdit seulement les doublons dans un attribut multivalué.
+' Les énumérations sont reliées par le typage des attributs et paramètres ; les
+' dépendances correspondantes sont dessinées dans la vue classes-enumerations.puml.
+
+hide circle
+hide empty methods
+skinparam classAttributeIconSize 0
+skinparam nodesep 90
+skinparam ranksep 70
+
+' ---- Joueurs et parties ----
+
+class Joueur {
+  - pseudo : String
+  - email : String
+  - etat : EtatCompte = ACTIF
+  + peutJouer() : boolean
+  + suspendre()
+  + reactiver()
+}
+
+abstract class Partie {
+  - etat : EtatPartie = EN_ATTENTE
+  - dateDebut : Date [0..1]
+  - dateFin : Date [0..1]
+  - resultat : Resultat [0..1]
+  - motifFin : MotifFin [0..1]
+  - /trait : Couleur
+  + jouerCoup(joueur : Joueur, depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
+  + demarrer()
+  + terminer(resultat : Resultat, motif : MotifFin)
+  + annuler()
+  + abandonner(joueur : Joueur)
+  + position() : String
+  - verifierTrait(joueur : Joueur)
+  - verifierNullesAutomatiques() : MotifFin [0..1]
+}
+
+class PartieEntreJoueurs {
+  + rejoindre(joueur : Joueur)
+  + refuserInvitation(joueur : Joueur)
+  + proposerNulle(joueur : Joueur)
+  + accepterNulle(joueur : Joueur)
+  + refuserNulle(joueur : Joueur)
+  - peutEtreRejointePar(joueur : Joueur) : boolean
+  - attribuerCouleurs()
+}
+class PartieContreOrdinateur {
+  - force : int
+  + jouerCoupOrdinateur(depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
+}
+
+class Participation {
+  - couleur : Couleur [0..1]
+  - tempsRestant : Duree [0..1]
+  + demarrerPendule()
+  + arreterPendule()
+  + definirCouleur(couleur : Couleur)
+}
+
+class Cadence {
+  - tempsDeBase : Duree
+  - increment : Duree
+  - categorie : CategorieCadence
+}
+
+class Classement {
+  - points : int
+  + modifierPoints(variation : int)
+}
+
+Partie <|-- PartieEntreJoueurs
+Partie <|-- PartieContreOrdinateur
+
+Partie "0..*\nparties" -- "1..2 participants" Joueur
+(Partie, Joueur) .. Participation
+
+PartieEntreJoueurs "0..*" --> "1\ncreateur" Joueur
+PartieEntreJoueurs "0..*" --> "0..1\ninvite" Joueur
+PartieEntreJoueurs "0..*" --> "1" Cadence
+
+' Association qualifiée (cours, §2.1.8) : un joueur et une catégorie donnent
+' exactement un classement, soit un classement par famille de cadence.
+Joueur [categorie : CategorieCadence] "\n\n1" *-- "1" Classement
+
+' ---- Plateau, pièces et coups ----
+
+class Plateau {
+  + estLegal(depart : Case, arrivee : Case) : boolean
+  + deplacer(depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Piece [0..1]
+  + situationFinale(couleur : Couleur) : MotifFin [0..1]
+  - laisseRoiEnEchec(depart : Case, arrivee : Case) : boolean
+}
+
+class Case {
+  - colonne : String
+  - rangee : int
+}
+
+abstract class Piece {
+  - couleur : Couleur
+  - /aDejaBouge : boolean
+  + {abstract} deplacementsPossibles(plateau : Plateau) : Case [*]
+}
+
+class Roi {
+  + deplacementsPossibles(plateau : Plateau) : Case [*]
+}
+class Dame {
+  + deplacementsPossibles(plateau : Plateau) : Case [*]
+}
+class Tour {
+  + deplacementsPossibles(plateau : Plateau) : Case [*]
+}
+class Fou {
+  + deplacementsPossibles(plateau : Plateau) : Case [*]
+}
+class Cavalier {
+  + deplacementsPossibles(plateau : Plateau) : Case [*]
+}
+class Pion {
+  + deplacementsPossibles(plateau : Plateau) : Case [*]
+}
+
+Piece <|-- Roi
+Piece <|-- Dame
+Piece <|-- Tour
+Piece <|-- Fou
+Piece <|-- Cavalier
+Piece <|-- Pion
+
+class Coup {
+  - numero : int
+  - /notation : String
+}
+
+Partie "1" *-- "1" Plateau
+Plateau "1" *-- "       64\n       cases" Case
+Plateau "1" *-- "32..*\npieces" Piece
+Piece "0..1" -- "0..1         \n" Case : occupe >
+
+Partie "\n\n1" *-- "0..*\ncoups {ordered}" Coup
+Coup "0..*" --> "1\ndepart" Case
+Coup "0..*" --> "1\narrivee" Case
+Coup "0..*" -left-> "1 pieceJouee" Piece
+Coup "0..*" -left-> "0..1 piecePrise" Piece
+Coup "0..*" -left-> "0..1 piecePromue" Piece
+
+' ---- Énumérations ----
+
+enum EtatCompte <<enumeration>> {
+  ACTIF
+  SUSPENDU
+}
+
+enum EtatPartie <<enumeration>> {
+  EN_ATTENTE
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+
+enum Resultat <<enumeration>> {
+  VICTOIRE_BLANCS
+  VICTOIRE_NOIRS
+  NULLE
+}
+
+enum MotifFin <<enumeration>> {
+  MAT
+  PAT
+  ABANDON
+  TEMPS_ECOULE
+  ACCORD
+  TRIPLE_REPETITION
+  CINQUANTE_COUPS
+  MATERIEL_INSUFFISANT
+}
+
+enum Couleur <<enumeration>> {
+  BLANC
+  NOIR
+}
+
+enum CategorieCadence <<enumeration>> {
+  BULLET
+  BLITZ
+  RAPIDE
+}
+
+enum TypePromotion <<enumeration>> {
+  DAME
+  TOUR
+  FOU
+  CAVALIER
+}
+
+' ---- Contraintes OCL (J4) ----
+
+legend bottom right
+  <b>Contraintes OCL (J4)</b>
+  Les règles que les multiplicités
+  n'expriment pas : docs/contraintes-ocl.md,
+  vues classes-ocl-invariants
+  et classes-ocl-contrats.
+endlegend
+
+' ---- Mise en page uniquement (liens invisibles, sans effet sur le modèle) ----
+' Des espaces insécables décalent les étiquettes « 64 cases » et « 0..1 »
+' (occupe), qui arrivent au même point de Case et se superposeraient ; de même
+' « 1 » (coups), descendu de deux lignes, et « 0..* » (participants), sous Partie.
+' L'image est limitée à 4096 pixels de large : pièces sur deux rangées,
+' énumérations empilées en colonne.
+Roi -[hidden]down- Fou
+Dame -[hidden]down- Cavalier
+Tour -[hidden]down- Pion
+EtatCompte -[hidden]down- EtatPartie
+EtatPartie -[hidden]down- Resultat
+Resultat -[hidden]down- MotifFin
+MotifFin -[hidden]down- Couleur
+Couleur -[hidden]down- CategorieCadence
+CategorieCadence -[hidden]down- TypePromotion
+
+@enduml

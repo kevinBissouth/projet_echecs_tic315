@@ -1,0 +1,203 @@
+@startuml classes-ocl-invariants
+' Vue du modèle du domaine annotée de ses contraintes OCL (jalon J4), 1re partie :
+' invariants et attributs dérivés (C1 à C10). Les contrats d'opérations (C11 à C15)
+' sont dans classes-ocl-contrats.puml.
+' Un modèle, plusieurs diagrammes (cours, §1.5) : les classes ne montrent que les
+' attributs et les rôles utilisés par les contraintes ; leur contenu complet est dans
+' classes-domaine.puml. Comme dans la figure 28 du cours, chaque contrainte est une
+' note rattachée à sa classe de contexte.
+' Le texte OCL est celui de docs/contraintes-ocl.md, qui le justifie : le modifier
+' aux deux endroits.
+
+title Contraintes OCL du domaine (1/2) : invariants et attributs dérivés
+
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam noteFontName Monospaced
+skinparam nodesep 70
+skinparam ranksep 60
+
+' ---- Classes (vue partielle) ----
+
+class Joueur {
+  - pseudo : String
+  - email : String
+}
+
+abstract class Partie {
+  - etat : EtatPartie
+  - resultat : Resultat [0..1]
+  - motifFin : MotifFin [0..1]
+  - /trait : Couleur
+}
+
+class PartieEntreJoueurs
+class PartieContreOrdinateur
+
+class Participation {
+  - couleur : Couleur [0..1]
+  - tempsRestant : Duree [0..1]
+}
+
+class Plateau
+
+class Case {
+  - colonne : String
+  - rangee : int
+}
+
+abstract class Piece {
+  - couleur : Couleur
+  - /aDejaBouge : boolean
+}
+
+class Pion
+class Roi
+
+class Coup {
+  - numero : int
+}
+
+Partie <|-- PartieEntreJoueurs
+Partie <|-- PartieContreOrdinateur
+Piece <|-- Pion
+Piece <|-- Roi
+
+Partie "0..*\nparties" -- "1..2 participants" Joueur
+(Partie, Joueur) .. Participation
+PartieEntreJoueurs "0..*" -left-> "1\ncreateur" Joueur
+PartieEntreJoueurs "0..*" -left-> "0..1\ninvite" Joueur
+
+Partie "1" *-- "1" Plateau
+Plateau "1" *-- "64              \ncases              " Case
+Plateau "1" *-- "32..*\npieces" Piece
+Partie "1" *-- "0..*\ncoups {ordered}" Coup
+Coup "0..*" --> "1\ndepart" Case
+Coup "0..*" --> "              1\n              arrivee" Case
+Coup "0..*" -left-> "1 pieceJouee" Piece
+Coup "0..*" -left-> "0..1 piecePrise" Piece
+Coup "0..*" -left-> "0..1 piecePromue" Piece
+
+' Mise en page : des espaces insécables décalent « 64 cases » et « arrivee », qui
+' arrivent au même point de Case que « depart » et se superposeraient.
+
+' ---- Contraintes ----
+
+note bottom of Joueur
+  <b>C1 — Pseudo et e-mail uniques (RG12)</b>
+  context Joueur
+  inv pseudoUnique: Joueur.allInstances()->isUnique(j | j.pseudo)
+  inv emailUnique:  Joueur.allInstances()->isUnique(j | j.email)
+
+  <b>C2 — Une partie à la fois (RG11)</b>
+  context Joueur
+  inv unePartieALaFois: self.parties->select(p | p.estActive())->size() <= 1
+end note
+
+note top of Partie
+  <b>Opération auxiliaire</b>
+  context Partie
+  def: estActive() : Boolean =
+    self.etat = EtatPartie::EN_ATTENTE or self.etat = EtatPartie::EN_COURS
+
+  <b>C6 — Résultat et motif, seulement pour une partie terminée (RG4, RG15)</b>
+  context Partie
+  inv resultatSiTerminee:
+    (self.etat = EtatPartie::TERMINEE) = not self.resultat.oclIsUndefined()
+  inv motifSiTerminee:
+    (self.etat = EtatPartie::TERMINEE) = not self.motifFin.oclIsUndefined()
+  inv resultatCoherentAvecMotif:
+    self.etat = EtatPartie::TERMINEE implies
+      let motifsDeNulle : Set(MotifFin) =
+        Set{MotifFin::PAT, MotifFin::ACCORD, MotifFin::TRIPLE_REPETITION,
+            MotifFin::CINQUANTE_COUPS, MotifFin::MATERIEL_INSUFFISANT}
+      in (motifsDeNulle->includes(self.motifFin) implies self.resultat = Resultat::NULLE)
+         and ((self.motifFin = MotifFin::MAT or self.motifFin = MotifFin::ABANDON)
+              implies self.resultat <> Resultat::NULLE)
+
+  <b>C7 — Les coups d'une partie (RG7)</b>
+  context Partie
+  inv pasDeCoupAvantLeDebut:
+    self.etat = EtatPartie::EN_ATTENTE implies self.coups->isEmpty()
+  inv coupsNumerotesDansLOrdre:
+    self.coups->forAll(c | c.numero = self.coups->indexOf(c))
+
+  <b>C9 — Qui a le trait (RG3)</b>
+  context Partie::trait : Couleur
+  derive: if self.coups->size().mod(2) = 0 then Couleur::BLANC else Couleur::NOIR endif
+end note
+
+note bottom of PartieEntreJoueurs
+  <b>C5 — Partie entre joueurs : créateur, invité et deux camps (RG3, RG13)</b>
+  context PartieEntreJoueurs
+  inv createurParticipe: self.participants->includes(self.createur)
+  inv pasSaPropreInvitation:
+    not self.invite.oclIsUndefined() implies self.invite <> self.createur
+  inv seulPendantLAttente:
+    self.etat = EtatPartie::EN_ATTENTE implies self.participants = Set{self.createur}
+  inv deuxCampsUneFoisCommencee:
+    (self.etat = EtatPartie::EN_COURS or self.etat = EtatPartie::TERMINEE) implies
+      self.participants->size() = 2
+      and self.participation->forAll(p | not p.couleur.oclIsUndefined())
+      and self.participation->isUnique(p | p.couleur)
+  inv adversaireInvite:
+    (not self.invite.oclIsUndefined() and self.participants->size() = 2)
+      implies self.participants->includes(self.invite)
+end note
+
+note bottom of PartieContreOrdinateur
+  <b>C4 — Partie contre l'ordinateur : un seul joueur, sans pendule (RG10)</b>
+  context PartieContreOrdinateur
+  inv unSeulParticipant: self.participants->size() = 1
+  inv sansPendule:       self.participation->forAll(p | p.tempsRestant.oclIsUndefined())
+  inv niTempsNiAccord:
+    not self.motifFin.oclIsUndefined() implies
+      self.motifFin <> MotifFin::TEMPS_ECOULE and self.motifFin <> MotifFin::ACCORD
+end note
+
+note bottom of Case
+  <b>C3 — Les 64 cases de l'échiquier (aucune RG : règle du jeu)</b>
+  context Case
+  inv coordonneesValides:
+    Set{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}->includes(self.colonne)
+    and self.rangee >= 1 and self.rangee <= 8
+
+  context Plateau
+  inv casesDistinctes:
+    self.cases->forAll(c1, c2 |
+      c1 <> c2 implies (c1.colonne <> c2.colonne or c1.rangee <> c2.rangee))
+end note
+
+note bottom of Coup
+  <b>C8 — Un coup respecte les camps et le plateau (RG1, RG2, RG3)</b>
+  context Coup
+  inv alternanceDesCamps:
+    self.pieceJouee.couleur =
+      (if self.numero.mod(2) = 1 then Couleur::BLANC else Couleur::NOIR endif)
+  inv casesDuPlateauDeLaPartie:
+    self.depart <> self.arrivee
+    and self.partie.plateau.cases->includes(self.depart)
+    and self.partie.plateau.cases->includes(self.arrivee)
+    and self.partie.plateau.pieces->includes(self.pieceJouee)
+  inv priseDUnePieceAdverse:
+    not self.piecePrise.oclIsUndefined() implies
+      self.piecePrise.couleur <> self.pieceJouee.couleur
+      and not self.piecePrise.oclIsKindOf(Roi)
+  inv promotionDUnPion:
+    not self.piecePromue.oclIsUndefined() implies
+      self.pieceJouee.oclIsTypeOf(Pion)
+      and self.arrivee.rangee =
+        (if self.pieceJouee.couleur = Couleur::BLANC then 8 else 1 endif)
+      and self.piecePromue.couleur = self.pieceJouee.couleur
+      and not self.piecePromue.oclIsKindOf(Roi)
+      and not self.piecePromue.oclIsKindOf(Pion)
+end note
+
+note bottom of Piece
+  <b>C10 — Une pièce a déjà bougé (RG2)</b>
+  context Piece::aDejaBouge : Boolean
+  derive: self.plateau.partie.coups->exists(c | c.pieceJouee = self)
+end note
+
+@enduml

@@ -1,0 +1,145 @@
+@startuml classes-ocl-contrats
+' Vue du modèle du domaine annotée de ses contraintes OCL (jalon J4), 2e partie :
+' requête et contrats d'opérations (C11 à C15). Les invariants et attributs dérivés
+' (C1 à C10), ainsi que l'opération auxiliaire estActive(), sont dans
+' classes-ocl-invariants.puml.
+' Un modèle, plusieurs diagrammes (cours, §1.5) : les classes ne montrent que les
+' attributs, rôles et opérations utilisés par les contraintes ; leur contenu complet
+' est dans classes-domaine.puml. Chaque contrat est une note rattachée à la classe
+' qui porte l'opération (cours, figure 28).
+' Le texte OCL est celui de docs/contraintes-ocl.md, qui le justifie : le modifier
+' aux deux endroits.
+
+title Contraintes OCL du domaine (2/2) : requête et contrats d'opérations
+
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam noteFontName Monospaced
+skinparam nodesep 70
+skinparam ranksep 60
+
+' ---- Classes (vue partielle) ----
+
+class Joueur {
+  - etat : EtatCompte
+  + peutJouer() : boolean
+  + suspendre()
+}
+
+abstract class Partie {
+  - etat : EtatPartie
+  - dateDebut : Date [0..1]
+  - resultat : Resultat [0..1]
+  - motifFin : MotifFin [0..1]
+  - /trait : Couleur
+  + jouerCoup(joueur : Joueur, depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
+  + terminer(resultat : Resultat, motif : MotifFin)
+}
+
+class PartieEntreJoueurs {
+  + rejoindre(joueur : Joueur)
+}
+class PartieContreOrdinateur
+
+class Participation {
+  - couleur : Couleur [0..1]
+}
+
+class Cadence {
+  - categorie : CategorieCadence
+}
+
+class Classement {
+  - points : int
+}
+
+class Plateau {
+  + estLegal(depart : Case, arrivee : Case) : boolean
+}
+
+class Coup
+class Case
+
+Partie <|-- PartieEntreJoueurs
+Partie <|-- PartieContreOrdinateur
+
+Partie "0..*\nparties" -- "1..2 participants" Joueur
+(Partie, Joueur) .. Participation
+PartieEntreJoueurs "0..*" --> "1\ncreateur\n\n" Joueur
+PartieEntreJoueurs "0..*" --> "\n\n0..1\ninvite" Joueur
+PartieEntreJoueurs "0..*" --> "1" Cadence
+Joueur [categorie : CategorieCadence] "\n\n1" *-- "1" Classement
+
+Partie "1" *-- "1" Plateau
+Partie "1" *-- "0..*\ncoups {ordered}" Coup
+Coup "0..*" --> "1\ndepart" Case
+Coup "0..*" --> "1\narrivee" Case
+
+' ---- Contraintes ----
+
+note top of Joueur
+  <b>C11 — Un joueur peut-il jouer ? (RG8, RG11)</b>
+  context Joueur::peutJouer() : Boolean
+  body: self.etat = EtatCompte::ACTIF and not self.parties->exists(p | p.estActive())
+
+  <b>C15 — Suspendre un compte (RG8, RG14)</b>
+  context Joueur::suspendre()
+  pre actif:              self.etat = EtatCompte::ACTIF
+  post suspendu:          self.etat = EtatCompte::SUSPENDU
+  post plusDePartieActive: not self.parties->exists(p | p.estActive())
+  post compteConserve:    Joueur.allInstances()->includes(self)
+
+  <i>estActive() : opération auxiliaire définie dans le diagramme 1/2</i>
+end note
+
+note top of Partie
+  <b>C12 — Jouer un coup (RG1, RG3, RG7)</b>
+  context Partie::jouerCoup(joueur : Joueur, depart : Case, arrivee : Case,
+                            promotion : TypePromotion) : Coup
+  pre partieEnCours:   self.etat = EtatPartie::EN_COURS
+  pre joueurParticipe: self.participants->includes(joueur)
+  pre aLeTrait:
+    self.participation->any(p | p.participants = joueur).couleur = self.trait
+  pre coupLegal:       self.plateau.estLegal(depart, arrivee)
+  post unCoupDePlus:   self.coups->size() = self.coups@pre->size() + 1
+  post coupEnregistre:
+    result = self.coups->last()
+    and result.depart = depart and result.arrivee = arrivee
+  post traitPasse:
+    self.etat = EtatPartie::EN_COURS implies self.trait <> self.trait@pre
+
+  <b>C14 — Terminer une partie : seul le bon classement change (RG6)</b>
+  context Partie::terminer(resultat : Resultat, motif : MotifFin)
+  pre enCours: self.etat = EtatPartie::EN_COURS
+  post terminee:
+    self.etat = EtatPartie::TERMINEE
+    and self.resultat = resultat and self.motifFin = motif
+  post seulLeClassementDeLaCadenceChange:
+    self.participants->forAll(j |
+      Set{CategorieCadence::BULLET, CategorieCadence::BLITZ, CategorieCadence::RAPIDE}
+        ->forAll(c |
+          (self.oclIsTypeOf(PartieContreOrdinateur)
+           or c <> self.oclAsType(PartieEntreJoueurs).cadence.categorie)
+          implies j.classement[c].points = j.classement[c].points@pre))
+end note
+
+note bottom of PartieEntreJoueurs
+  <b>C13 — Rejoindre une partie (RG3, RG8, RG11, RG13)</b>
+  context PartieEntreJoueurs::rejoindre(joueur : Joueur)
+  pre enAttente:          self.etat = EtatPartie::EN_ATTENTE
+  pre pasLeCreateur:      joueur <> self.createur
+  pre inviteSiInvitation: not self.invite.oclIsUndefined() implies joueur = self.invite
+  pre joueurDisponible:   joueur.peutJouer()
+  post partieDemarree:
+    self.etat = EtatPartie::EN_COURS and not self.dateDebut.oclIsUndefined()
+  post deuxParticipants:  self.participants = Set{self.createur, joueur}
+end note
+
+' ---- Mise en page uniquement (lien invisible, sans effet sur le modèle) ----
+' Coup à côté de Plateau : sa composition ne croise plus l'étiquette « parties ».
+' Les retours à la ligne écartent « createur » et « invite », qui arrivent au
+' même endroit de Joueur.
+Plateau -[hidden]right- Coup
+
+@enduml

@@ -1,0 +1,55 @@
+@startuml sequence-contre-ordinateur
+' Séquence de conception — UC7 Jouer une partie contre l'ordinateur (jalon J3).
+' Le moteur d'échecs est un acteur externe (Stockfish). S'il ne répond pas après
+' deux demandes, la partie est annulée (choix E2, RG15) : fragment break.
+' Le coup du joueur réutilise la séquence « Jouer un coup » (ref).
+' Barres d'activation sur les objets du système uniquement, pas sur les acteurs.
+
+autonumber
+hide footbox
+
+actor "Joueur" as joueur
+participant ":ControleurPartie" as controleur
+participant "joueurCourant : Joueur" as compte
+participant "partie : PartieContreOrdinateur" as partie
+actor "Moteur d'échecs\n(Stockfish)" as moteur
+
+joueur -> controleur ++ : demarrerPartieContreOrdinateur(force, couleur)
+controleur -> compte ++ : peutJouer()
+note right of compte : compte actif (RG8)\net aucune partie en attente\nou en cours (RG11)
+compte --> controleur -- : autorise
+break le joueur ne peut pas jouer (RG8, RG11)
+  controleur --> joueur : refus
+end
+create partie
+controleur --> partie ++ : <<create>> PartieContreOrdinateur(joueurCourant, force, couleur)
+note right of partie : crée son plateau en position\ninitiale et la participation\ndu joueur ; état EN_COURS
+deactivate partie
+controleur --> joueur : afficher le plateau
+
+' Une itération = un seul coup : si le coup du joueur termine la partie,
+' l'ordinateur ne joue pas ensuite.
+loop tant que la partie est en cours
+  alt le joueur a le trait
+    ref over joueur, controleur, partie : Jouer un coup (UC8)
+  else l'ordinateur a le trait
+    controleur -> partie ++ : position()
+    partie --> controleur -- : position
+    controleur -> moteur : calculerCoup(position, force)
+    break pas de réponse après deux demandes
+      controleur -> partie ++ : annuler()
+      deactivate partie
+      controleur --> joueur : informer : partie annulée, sans résultat
+    end
+    moteur --> controleur : coup
+    controleur -> partie ++ : jouerCoupOrdinateur(depart, arrivee, promotion)
+    note right of partie : même vérification et même\nenregistrement que pour un\ncoup du joueur (UC8)
+    partie --> controleur -- : coup
+    controleur --> joueur : afficher le coup de l'ordinateur
+  end
+end
+
+controleur --> joueur : afficher le résultat (classement inchangé)
+deactivate controleur
+
+@enduml

@@ -1,0 +1,129 @@
+@startuml classes-conception-jeu
+' Diagramme de classes de conception — package metier.jeu (jalon J4).
+' Les règles des échecs, sans notion de joueur ni de partie : ce package ne dépend
+' d'aucun autre. Décisions justifiées dans docs/conception.md :
+' - le coup est créé par la partie, qui le contient (GRASP Créateur, comme dans
+'   sequence-jouer-coup) ; le plateau retient seulement la case où une prise en
+'   passant est possible, comme le champ correspondant de la notation FEN ;
+' - /aDejaBouge (analyse) devient aDejaBouge(), calculé sur un compteur de
+'   déplacements : la pièce n'a pas à remonter jusqu'aux coups de la partie ;
+' - la case connaît sa pièce (navigabilité Case → Piece) ; la pièce reçoit donc sa
+'   case de départ pour calculer ses déplacements ;
+' - MotifFin est ici, car Plateau::situationFinale() le renvoie : le placer dans
+'   metier.partie créerait un cycle entre les deux packages.
+' Polymorphisme (GRASP) : chaque pièce calcule ses propres déplacements.
+' Un coup est immuable ({readOnly}) : l'historique ne se réécrit pas (RG7) ; son
+' constructeur reçoit ses attributs et ses rôles, il n'est pas dessiné.
+
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam nodesep 50
+skinparam ranksep 60
+
+package metier.jeu {
+
+  class Plateau {
+    - casePriseEnPassant : Case [0..1]
+    + Plateau()
+    + caseEn(colonne : String, rangee : int) : Case
+    + estLegal(depart : Case, arrivee : Case) : boolean
+    + deplacer(depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Piece [0..1]
+    + situationFinale(couleur : Couleur) : MotifFin [0..1]
+    + enEchec(couleur : Couleur) : boolean
+    + position() : String
+    - laisseRoiEnEchec(depart : Case, arrivee : Case) : boolean
+    - materielInsuffisant() : boolean
+  }
+
+  class Case {
+    - colonne : String {readOnly}
+    - rangee : int {readOnly}
+    + estLibre() : boolean
+    ~ placer(piece : Piece [0..1])
+  }
+
+  abstract class Piece {
+    - couleur : Couleur {readOnly}
+    - nombreDeplacements : int = 0
+    + aDejaBouge() : boolean
+    + {abstract} deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+    ~ marquerDeplacee()
+  }
+
+  class Roi {
+    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+  }
+  class Dame {
+    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+  }
+  class Tour {
+    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+  }
+  class Fou {
+    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+  }
+  class Cavalier {
+    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+  }
+  class Pion {
+    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+  }
+
+  class Coup {
+    - numero : int {readOnly}
+    - positionApres : String {readOnly}
+    + notation() : String
+    + estUnePriseOuUnCoupDePion() : boolean
+  }
+
+  enum Couleur <<enumeration>> {
+    BLANC
+    NOIR
+  }
+
+  enum TypePromotion <<enumeration>> {
+    DAME
+    TOUR
+    FOU
+    CAVALIER
+  }
+
+  enum MotifFin <<enumeration>> {
+    MAT
+    PAT
+    ABANDON
+    TEMPS_ECOULE
+    ACCORD
+    TRIPLE_REPETITION
+    CINQUANTE_COUPS
+    MATERIEL_INSUFFISANT
+  }
+}
+
+Piece <|-- Roi
+Piece <|-- Dame
+Piece <|-- Tour
+Piece <|-- Fou
+Piece <|-- Cavalier
+Piece <|-- Pion
+
+Plateau "1" *--> "                    64\n                    cases" Case
+Plateau "1" *--> "32..*\npieces" Piece
+Case "0..1                      " --> "\n\n0..1\npiece" Piece
+Coup "0..*" --> "1\ndepart" Case
+Coup "0..*" --> "1\narrivee" Case
+Coup "0..*" -left-> "1 pieceJouee" Piece
+Coup "0..*" -left-> "0..1 piecePrise" Piece
+Coup "0..*" -left-> "0..1 piecePromue" Piece
+
+' ---- Mise en page uniquement (liens invisibles, sans effet sur le modèle) ----
+' Des espaces insécables décalent « 64 cases » vers la droite et « 0..1 » (piece)
+' vers la gauche : ils arrivent au même point de Case que « depart » et « arrivee ».
+Roi -[hidden]down- Fou
+Dame -[hidden]down- Cavalier
+Tour -[hidden]down- Pion
+Couleur -[hidden]down- TypePromotion
+TypePromotion -[hidden]down- MotifFin
+
+@enduml

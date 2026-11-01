@@ -1,0 +1,68 @@
+@startuml etats-partie
+' Diagramme d'états-transitions de la classe Partie (jalon J3).
+' Choix E1 : pas d'état « abandonnée » ; un abandon termine la partie (motifFin = ABANDON).
+' Choix E2 : « annulée » = close sans résultat (créateur, invitation refusée,
+' annulation avant le premier coup de chaque camp (RG16), moteur muet).
+' L'état composite « En cours » a deux régions orthogonales : le tour (demandé par le
+' sujet) et la proposition de nulle, qui évoluent indépendamment l'une de l'autre.
+' Chaque événement d'appel est une opération de Partie (diagramme de classes).
+' Un même événement (jouerCoup) a des gardes exclusives : [coup terminal] sort du
+' composite, [coup non terminal] fait seulement changer le tour. Un coup de
+' l'ordinateur passe aussi par jouerCoup (même vérification, même enregistrement).
+
+hide empty description
+
+state choixCreation <<choice>>
+
+state "En attente" as EnAttente
+
+state "En cours" as EnCours {
+  state "Trait aux blancs" as TraitBlancs
+  state "Trait aux noirs" as TraitNoirs
+  [*] --> TraitBlancs
+  TraitBlancs --> TraitNoirs : jouerCoup [coup non terminal]\n/ basculer la pendule vers les noirs\n(partie entre joueurs)
+  TraitNoirs --> TraitBlancs : jouerCoup [coup non terminal]\n/ basculer la pendule vers les blancs\n(partie entre joueurs)
+  --
+  state "Sans proposition" as SansProposition
+  state "Nulle proposée" as NulleProposee
+  [*] --> SansProposition
+  SansProposition --> NulleProposee : proposerNulle(joueur)\n[partie entre joueurs]
+  NulleProposee --> SansProposition : refuserNulle(joueur)\n[par l'autre joueur]
+  ' Règle des échecs : jouer sans répondre vaut refus (RG4). La garde [coup non
+  ' terminal] évite le conflit avec la sortie vers « Terminée » : sinon cette
+  ' transition intérieure, prioritaire, empêcherait la fin de partie.
+  NulleProposee --> SansProposition : jouerCoup [par l'autre joueur,\ncoup non terminal]\n/ proposition refusée
+}
+
+EnCours : entry / démarrer la pendule des blancs [partie entre joueurs]
+
+state "Terminée" as Terminee
+Terminee : entry / enregistrer résultat et motifFin
+Terminee : entry / mettre à jour le classement de la catégorie\nde la cadence [partie entre joueurs]
+
+state "Annulée" as Annulee
+
+[*] --> choixCreation : créer
+choixCreation --> EnAttente : [partie entre joueurs]
+choixCreation --> EnCours : [partie contre l'ordinateur]
+
+EnAttente --> EnCours : rejoindre(joueur)\n[joueur autorisé (RG8, RG11, RG13)]\n/ attribuer les couleurs
+EnAttente --> Annulee : annuler() [par le créateur,\nou créateur suspendu (RG8)]
+EnAttente --> Annulee : refuserInvitation(joueur) [par l'invité]
+
+EnCours --> Terminee : jouerCoup [coup terminal :\nmat, pat ou nulle automatique]
+EnCours --> Terminee : abandonner(joueur)\n/ défaite du joueur
+note on link
+  Aussi déclenché par le système quand
+  le compte du joueur est suspendu (RG8)
+end note
+EnCours --> Terminee : when(temps du trait = 0)\n/ défaite, ou nulle si matériel insuffisant
+' PlantUML refuse une transition partant d'un sous-état d'une région orthogonale vers
+' l'extérieur ; elle part donc du composite, avec une garde sur l'état de la région.
+EnCours --> Terminee : accepterNulle(joueur)\n[nulle proposée par l'autre joueur]\n/ résultat NULLE
+EnCours --> Annulee : annuler()\n[par un participant, moins de\n2 coups joués (RG16),\nou moteur sans réponse]
+
+Terminee --> [*]
+Annulee --> [*]
+
+@enduml
