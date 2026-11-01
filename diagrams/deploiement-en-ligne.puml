@@ -1,0 +1,38 @@
+@startuml deploiement-en-ligne
+' Diagramme de déploiement (jalon J5) : le site est uniquement en ligne (cours, §2.5).
+' echecs.jar contient le serveur web (Spring Boot) et les pages du site, que le
+' navigateur télécharge. Stockfish est un processus lancé par le programme, dans le
+' même conteneur. La base est séparée : un conteneur peut être recréé à tout moment,
+' et ce qu'il contient est alors perdu.
+
+skinparam nodesep 60
+skinparam ranksep 70
+
+node "Appareil d'un joueur" <<device>> as Appareil {
+  node "Navigateur" <<execution environment>> as Navigateur {
+    artifact "Pages du site\n(HTML, CSS, JS)" as Pages
+  }
+}
+
+node "Hébergeur cloud" <<device>> as Hebergeur {
+  node "Conteneur Docker" <<execution environment>> as Conteneur {
+    node "JVM" <<execution environment>> as Jvm {
+      artifact "echecs.jar" as Jar
+    }
+    artifact "stockfish" as Stockfish
+  }
+}
+
+node "Service de base de données" <<device>> as ServiceBase {
+  database "PostgreSQL" as Base
+}
+
+node "Fournisseur d'identité" <<device>> as Fournisseur
+
+Appareil -- Hebergeur : HTTPS, WebSocket sécurisé
+Appareil -- Fournisseur : HTTPS (connexion)
+Jar ..> Stockfish : UCI
+Hebergeur -- ServiceBase : JDBC
+Hebergeur -- Fournisseur : HTTPS (OpenID Connect)
+
+@enduml
