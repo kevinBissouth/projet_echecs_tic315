@@ -6,7 +6,7 @@ import echecs.metier.joueur.Joueur;
 import java.util.List;
 import java.util.Map;
 
-/** What the web site can ask about accounts. Who may call the administrator's actions is checked by ihm. */
+/** What the web site can ask about accounts. Managing accounts is reserved for an administrator (RG17). */
 public interface ICompte {
     Joueur creerCompte(String pseudo, String email);
 
@@ -14,9 +14,15 @@ public interface ICompte {
 
     Map<CategorieCadence, Classement> consulterClassements(Joueur joueur);
 
-    List<Joueur> consulterComptes();
+    /** @throws AccesRefuseException if the caller is not an administrator */
+    List<Joueur> consulterComptes(Joueur appelant);
 
-    void suspendre(Joueur joueur);
+    /** @throws AccesRefuseException if the caller is not an administrator, or targets an administrator */
+    void suspendre(Joueur appelant, Joueur joueur);
 
-    void reactiver(Joueur joueur);
+    /** @throws AccesRefuseException if the caller is not an administrator */
+    void reactiver(Joueur appelant, Joueur joueur);
+
+    /** @throws AccesRefuseException if the caller is not an administrator, or the player is in a game */
+    void nommerAdministrateur(Joueur appelant, Joueur joueur);
 }

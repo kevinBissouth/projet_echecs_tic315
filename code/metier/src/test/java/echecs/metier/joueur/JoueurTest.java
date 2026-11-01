@@ -16,7 +16,33 @@ class JoueurTest {
     private final Joueur alice = new Joueur("alice", "alice@exemple.com");
 
     @Test
+    void unAdministrateurGereLesComptesMaisNeJouePas_RG17() {
+        Joueur administrateur = Joueur.administrateur("admin", "admin@exemple.com");
+
+        assertTrue(administrateur.estAdministrateur());
+        assertFalse(administrateur.peutJouer());
+        assertThrows(IllegalStateException.class, administrateur::occuper);
+    }
+
+    @Test
+    void unJoueurNommeAdministrateurNeJouePlus_RG17() {
+        alice.nommerAdministrateur();
+
+        assertTrue(alice.estAdministrateur());
+        assertFalse(alice.peutJouer());
+    }
+
+    @Test
+    void unJoueurEnPartieNePeutPasEtreNomme_RG17() {
+        alice.occuper();
+
+        assertThrows(IllegalStateException.class, alice::nommerAdministrateur);
+        assertFalse(alice.estAdministrateur());
+    }
+
+    @Test
     void unNouveauJoueurPeutJouer() {
+        assertFalse(alice.estAdministrateur());
         assertEquals(EtatCompte.ACTIF, alice.etat());
         assertTrue(alice.peutJouer());
     }

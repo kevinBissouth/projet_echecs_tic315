@@ -53,23 +53,53 @@ public class ControleurCompte implements ICompte {
         return classements;
     }
 
+    /** The first administrator comes from the configuration: no administrator exists yet to name one. */
+    public void creerAdministrateurInitial(String pseudo, String email) {
+        if (depotJoueurs.trouverParEmail(email).isEmpty()) {
+            depotJoueurs.enregistrer(Joueur.administrateur(pseudo, email));
+        }
+    }
+
     @Override
-    public List<Joueur> consulterComptes() {
+    public List<Joueur> consulterComptes(Joueur appelant) {
+        exigerAdministrateur(appelant);
         return depotJoueurs.tous();
     }
 
     /** RG8, RG14: the account stays, and the player leaves their active game. */
     @Override
-    public void suspendre(Joueur joueur) {
+    public void suspendre(Joueur appelant, Joueur joueur) {
+        exigerAdministrateur(appelant);
+        if (joueur.estAdministrateur()) {
+            throw new AccesRefuseException("Un administrateur ne peut pas être suspendu");
+        }
         joueur.suspendre();
         depotJoueurs.enregistrer(joueur);
         depotParties.partieActiveDe(joueur).ifPresent(partie -> files.executer(partie, () -> retirer(joueur, partie)));
     }
 
     @Override
-    public void reactiver(Joueur joueur) {
+    public void reactiver(Joueur appelant, Joueur joueur) {
+        exigerAdministrateur(appelant);
         joueur.reactiver();
         depotJoueurs.enregistrer(joueur);
+    }
+
+    @Override
+    public void nommerAdministrateur(Joueur appelant, Joueur joueur) {
+        exigerAdministrateur(appelant);
+        try {
+            joueur.nommerAdministrateur();
+        } catch (IllegalStateException enPartie) {
+            throw new AccesRefuseException(enPartie.getMessage());
+        }
+        depotJoueurs.enregistrer(joueur);
+    }
+
+    private static void exigerAdministrateur(Joueur appelant) {
+        if (!appelant.estAdministrateur()) {
+            throw new AccesRefuseException("Action réservée à un administrateur");
+        }
     }
 
     private static void retirer(Joueur joueur, Partie partie) {

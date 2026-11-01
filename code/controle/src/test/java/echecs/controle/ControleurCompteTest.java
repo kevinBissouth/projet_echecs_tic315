@@ -36,6 +36,7 @@ class ControleurCompteTest {
     private final DepotsEnMemoire.Parties depotParties = new DepotsEnMemoire.Parties();
     private final FilesDeParties files = new FilesDeParties();
     private final ControleurCompte controleur = new ControleurCompte(authentification, depotJoueurs, depotParties, files);
+    private final Joueur administrateur = Joueur.administrateur("admin", "admin@exemple.com");
 
     private ControleurPartie controleurPartie(Joueur joueur) {
         return new ControleurPartie(joueur, partie -> { }, new FauxMoteur(), new CalculElo(), depotParties, depotJoueurs,
@@ -46,7 +47,7 @@ class ControleurCompteTest {
     void creerUnCompteLEnregistre() {
         Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
 
-        assertEquals(List.of(alice), controleur.consulterComptes());
+        assertEquals(List.of(alice), controleur.consulterComptes(administrateur));
         assertTrue(alice.peutJouer());
     }
 
@@ -97,10 +98,10 @@ class ControleurCompteTest {
     void suspendreConserveLeCompte_RG14() {
         Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
 
-        controleur.suspendre(alice);
+        controleur.suspendre(administrateur, alice);
 
         assertEquals(EtatCompte.SUSPENDU, alice.etat());
-        assertEquals(List.of(alice), controleur.consulterComptes());
+        assertEquals(List.of(alice), controleur.consulterComptes(administrateur));
     }
 
     @Test
@@ -108,7 +109,7 @@ class ControleurCompteTest {
         Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
         PartieEntreJoueurs partie = controleurPartie(alice).creerPartie(RAPIDE, Couleur.BLANC, null);
 
-        controleur.suspendre(alice);
+        controleur.suspendre(administrateur, alice);
 
         assertEquals(EtatPartie.ANNULEE, partie.etat());
         assertFalse(alice.peutJouer());
@@ -121,7 +122,7 @@ class ControleurCompteTest {
         PartieEntreJoueurs partie = controleurPartie(alice).creerPartie(RAPIDE, Couleur.BLANC, null);
         controleurPartie(bob).rejoindrePartie(partie);
 
-        controleur.suspendre(bob);
+        controleur.suspendre(administrateur, bob);
 
         assertEquals(Optional.of(MotifFin.ABANDON), partie.motifFin());
         assertTrue(alice.peutJouer());
@@ -130,11 +131,79 @@ class ControleurCompteTest {
     @Test
     void reactiverRendLeCompteJouable_RG8() {
         Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
-        controleur.suspendre(alice);
+        controleur.suspendre(administrateur, alice);
 
-        controleur.reactiver(alice);
+        controleur.reactiver(administrateur, alice);
 
         assertTrue(alice.peutJouer());
+    }
+
+    @Test
+    void unJoueurOrdinaireNePeutPasGererLesComptes_RG17() {
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com");
+
+        assertThrows(AccesRefuseException.class, () -> controleur.consulterComptes(alice));
+        assertThrows(AccesRefuseException.class, () -> controleur.suspendre(alice, bob));
+        assertEquals(EtatCompte.ACTIF, bob.etat());
+        controleur.suspendre(administrateur, bob);
+        assertThrows(AccesRefuseException.class, () -> controleur.reactiver(alice, bob));
+        assertEquals(EtatCompte.SUSPENDU, bob.etat());
+    }
+
+    @Test
+    void unAdministrateurNePeutPasEtreSuspendu_RG17() {
+        Joueur autre = Joueur.administrateur("admin2", "admin2@exemple.com");
+
+        assertThrows(AccesRefuseException.class, () -> controleur.suspendre(administrateur, autre));
+        assertThrows(AccesRefuseException.class, () -> controleur.suspendre(administrateur, administrateur));
+    }
+
+    @Test
+    void unCompteCreeSurLeSiteNEstJamaisAdministrateur_RG17() {
+        assertFalse(controleur.creerCompte("alice", "alice@exemple.com").estAdministrateur());
+    }
+
+    @Test
+    void lAdministrateurInitialEstCreeUneSeuleFois_RG17() {
+        controleur.creerAdministrateurInitial("admin", "admin@exemple.com");
+        controleur.creerAdministrateurInitial("admin", "admin@exemple.com");
+
+        Joueur cree = depotJoueurs.trouverParEmail("admin@exemple.com").orElseThrow();
+        assertTrue(cree.estAdministrateur());
+        assertEquals(List.of(cree), controleur.consulterComptes(cree));
+    }
+
+    @Test
+    void unAdministrateurPeutEnNommerUnAutre_RG17() {
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        int avant = depotJoueurs.enregistrements;
+
+        controleur.nommerAdministrateur(administrateur, alice);
+
+        assertTrue(alice.estAdministrateur());
+        assertEquals(avant + 1, depotJoueurs.enregistrements);
+        assertEquals(List.of(alice), controleur.consulterComptes(alice));
+    }
+
+    @Test
+    void unJoueurOrdinaireNePeutNommerPersonne_RG17() {
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com");
+
+        assertThrows(AccesRefuseException.class, () -> controleur.nommerAdministrateur(alice, bob));
+        assertThrows(AccesRefuseException.class, () -> controleur.nommerAdministrateur(alice, alice));
+        assertFalse(alice.estAdministrateur());
+        assertFalse(bob.estAdministrateur());
+    }
+
+    @Test
+    void unJoueurEnPartieNePeutPasEtreNomme_RG17() {
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        controleurPartie(alice).creerPartie(RAPIDE, Couleur.BLANC, null);
+
+        assertThrows(AccesRefuseException.class, () -> controleur.nommerAdministrateur(administrateur, alice));
+        assertFalse(alice.estAdministrateur());
     }
 
     @Test
@@ -142,8 +211,8 @@ class ControleurCompteTest {
         Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
         int avant = depotJoueurs.enregistrements;
 
-        controleur.suspendre(alice);
-        controleur.reactiver(alice);
+        controleur.suspendre(administrateur, alice);
+        controleur.reactiver(administrateur, alice);
 
         assertEquals(avant + 2, depotJoueurs.enregistrements);
     }

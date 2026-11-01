@@ -6,12 +6,22 @@ import java.util.Map;
 public class Joueur {
     private final String pseudo;
     private final String email;
+    private RoleCompte role;
     private final Map<CategorieCadence, Classement> classements = new EnumMap<>(CategorieCadence.class);
     private EtatCompte etat = EtatCompte.ACTIF;
     // Kept by the game itself: a Joueur does not know its games, to avoid a package cycle.
     private boolean occupe = false;
 
     public Joueur(String pseudo, String email) {
+        this(pseudo, email, RoleCompte.JOUEUR);
+    }
+
+    public static Joueur administrateur(String pseudo, String email) {
+        return new Joueur(pseudo, email, RoleCompte.ADMINISTRATEUR);
+    }
+
+    private Joueur(String pseudo, String email, RoleCompte role) {
+        this.role = role;
         this.pseudo = exigerRenseigne(pseudo, "pseudo");
         this.email = exigerRenseigne(email, "email");
         for (CategorieCadence categorie : CategorieCadence.values()) {
@@ -27,12 +37,24 @@ public class Joueur {
         return email;
     }
 
+    public synchronized boolean estAdministrateur() {
+        return role == RoleCompte.ADMINISTRATEUR;
+    }
+
     public EtatCompte etat() {
         return etat;
     }
 
+    /** An administrator does not play (RG17): a player in a game must finish it first. */
+    public synchronized void nommerAdministrateur() {
+        if (occupe) {
+            throw new IllegalStateException(pseudo + " est en partie");
+        }
+        role = RoleCompte.ADMINISTRATEUR;
+    }
+
     public synchronized boolean peutJouer() {
-        return etat == EtatCompte.ACTIF && !occupe;
+        return role == RoleCompte.JOUEUR && etat == EtatCompte.ACTIF && !occupe;
     }
 
     public Classement classement(CategorieCadence categorie) {
