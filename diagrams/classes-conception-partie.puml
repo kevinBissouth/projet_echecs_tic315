@@ -36,6 +36,7 @@ package metier.partie {
     - dateFin : Instant [0..1]
     - resultat : Resultat [0..1]
     - motifFin : MotifFin [0..1]
+    - horloge : Clock {readOnly}
     + etat() : EtatPartie
     + trait() : Couleur
     + position() : String
@@ -45,22 +46,29 @@ package metier.partie {
     + abandonner(joueur : Joueur)
     + abonner(observateur : ObservateurPartie)
     + desabonner(observateur : ObservateurPartie)
+    ~ etatCourant() : EtatDePartie
     ~ changerEtat(etat : EtatDePartie)
     ~ demarrer()
     ~ executerCoup(joueur : Joueur [0..1], depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
     ~ terminer(resultat : Resultat, motif : MotifFin)
     ~ cloreSansResultat()
     ~ nombreCoupsJoues() : int
+    ~ motifDeFin() : MotifFin [0..1]
+    ~ resultatDe(motif : MotifFin) : Resultat
+    ~ estParticipant(joueur : Joueur) : boolean
+    ~ couleurDe(joueur : Joueur) : Couleur [0..1]
+    ~ ajouterParticipation(participation : Participation)
+    ~ maintenant() : Instant
+    ~ notifierObservateurs()
     # apresCoup()
     # mettreAJourClassements()
     - verifierTrait(joueur : Joueur)
     - verifierNullesAutomatiques() : MotifFin [0..1]
-    - notifierObservateurs()
   }
 
   class PartieEntreJoueurs {
     - nulleProposeePar : Couleur [0..1]
-    - horloge : Clock
+    + jouerCoup(joueur : Joueur, depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
     + rejoindre(joueur : Joueur)
     + refuserInvitation(joueur : Joueur)
     + proposerNulle(joueur : Joueur)
@@ -68,16 +76,19 @@ package metier.partie {
     + refuserNulle(joueur : Joueur)
     + verifierTemps()
     ~ demarrer()
+    ~ peutEtreRejointePar(joueur : Joueur) : boolean
+    ~ estInvite(joueur : Joueur) : boolean
+    ~ aRecuUneProposition(joueur : Joueur) : boolean
     ~ ajouterAdversaire(joueur : Joueur)
     ~ enregistrerPropositionNulle(couleur : Couleur [0..1])
     # apresCoup()
     # mettreAJourClassements()
-    - peutEtreRejointePar(joueur : Joueur) : boolean
     - attribuerCouleurs()
   }
 
   class PartieContreOrdinateur {
     - force : int {readOnly}
+    + ordinateurALeTrait() : boolean
     + jouerCoupOrdinateur(depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
   }
 
