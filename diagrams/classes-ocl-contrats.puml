@@ -23,6 +23,7 @@ skinparam ranksep 60
 
 class Joueur {
   - etat : EtatCompte
+  - role : RoleCompte
   + peutJouer() : boolean
   + suspendre()
 }
@@ -79,9 +80,10 @@ Coup "0..*" --> "1\narrivee" Case
 ' ---- Contraintes ----
 
 note top of Joueur
-  <b>C11 — Un joueur peut-il jouer ? (RG8, RG11)</b>
+  <b>C11 — Un joueur peut-il jouer ? (RG8, RG11, RG17)</b>
   context Joueur::peutJouer() : Boolean
-  body: self.etat = EtatCompte::ACTIF and not self.parties->exists(p | p.estActive())
+  body: self.role = RoleCompte::JOUEUR and self.etat = EtatCompte::ACTIF
+        and not self.parties->exists(p | p.estActive())
 
   <b>C15 — Suspendre un compte (RG8, RG14)</b>
   context Joueur::suspendre()

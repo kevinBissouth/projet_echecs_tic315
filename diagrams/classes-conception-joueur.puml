@@ -24,8 +24,12 @@ package metier.joueur {
     - pseudo : String {readOnly}
     - email : String {readOnly}
     - etat : EtatCompte = ACTIF
+    - role : RoleCompte = JOUEUR
     - occupe : boolean = false
     + Joueur(pseudo : String, email : String)
+    + {static} administrateur(pseudo : String, email : String) : Joueur
+    + estAdministrateur() : boolean
+    + nommerAdministrateur()
     + peutJouer() : boolean
     + suspendre()
     + reactiver()
@@ -57,6 +61,11 @@ package metier.joueur {
   enum EtatCompte <<enumeration>> {
     ACTIF
     SUSPENDU
+  }
+
+  enum RoleCompte <<enumeration>> {
+    JOUEUR
+    ADMINISTRATEUR
   }
 
   enum CategorieCadence <<enumeration>> {

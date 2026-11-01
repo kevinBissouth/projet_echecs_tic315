@@ -18,7 +18,7 @@ component "Adaptateur Moteur" as AdaptateurMoteur
 component "Adaptateur Authentification" as AdaptateurAuthentification
 component "Service Persistance" as Persistance
 component "Stockfish" <<external>> as Stockfish
-component "Fournisseur d'identité" <<external>> as Fournisseur
+component "Fournisseur d'identité\n(Google)" <<external>> as Fournisseur
 database "Base de données" as Base
 
 interface "IPartie" as IPartie

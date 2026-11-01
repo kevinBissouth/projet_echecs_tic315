@@ -27,6 +27,11 @@ enum EtatCompte <<enumeration>> {
   ACTIF
   SUSPENDU
 }
+
+enum RoleCompte <<enumeration>> {
+  JOUEUR
+  ADMINISTRATEUR
+}
 enum EtatPartie <<enumeration>> {
   EN_ATTENTE
   EN_COURS
@@ -65,6 +70,7 @@ enum TypePromotion <<enumeration>> {
 }
 
 Joueur ..> EtatCompte : etat
+Joueur ..> RoleCompte : role
 Joueur ..> CategorieCadence : qualificatif [categorie]
 Cadence ..> CategorieCadence : categorie
 Partie ..> EtatPartie : etat

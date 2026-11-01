@@ -55,9 +55,11 @@ package controle {
     + creerCompte(pseudo : String, email : String) : Joueur
     + seConnecter(jeton : String) : Joueur
     + consulterClassements(joueur : Joueur) : Map<CategorieCadence, Classement>
-    + consulterComptes() : List<Joueur>
-    + suspendre(joueur : Joueur)
-    + reactiver(joueur : Joueur)
+    + creerAdministrateurInitial(pseudo : String, email : String)
+    + consulterComptes(appelant : Joueur) : List<Joueur>
+    + suspendre(appelant : Joueur, joueur : Joueur)
+    + reactiver(appelant : Joueur, joueur : Joueur)
+    + nommerAdministrateur(appelant : Joueur, joueur : Joueur)
   }
 
   interface MoteurEchecs <<interface>> {
@@ -97,6 +99,7 @@ package controle {
   class ConnexionRefuseeException
   class CompteRefuseException
   class ActionRefuseeException
+  class AccesRefuseException
 }
 
 package infrastructure {
@@ -148,6 +151,7 @@ ControleurCompte "0..*" --> "1\ndepotParties" DepotParties
 MoteurEchecs ..> MoteurIndisponibleException : <<throws>>
 ServiceAuthentification ..> ConnexionRefuseeException : <<throws>>
 ControleurCompte ..> CompteRefuseException : <<throws>>
+ControleurCompte ..> AccesRefuseException : <<throws>>
 ControleurPartie ..> ActionRefuseeException : <<throws>>
 
 @enduml

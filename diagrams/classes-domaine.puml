@@ -24,6 +24,7 @@ class Joueur {
   - pseudo : String
   - email : String
   - etat : EtatCompte = ACTIF
+  - role : RoleCompte = JOUEUR
   + peutJouer() : boolean
   + suspendre()
   + reactiver()
@@ -163,6 +164,11 @@ enum EtatCompte <<enumeration>> {
   SUSPENDU
 }
 
+enum RoleCompte <<enumeration>> {
+  JOUEUR
+  ADMINISTRATEUR
+}
+
 enum EtatPartie <<enumeration>> {
   EN_ATTENTE
   EN_COURS
@@ -224,7 +230,8 @@ endlegend
 Roi -[hidden]down- Fou
 Dame -[hidden]down- Cavalier
 Tour -[hidden]down- Pion
-EtatCompte -[hidden]down- EtatPartie
+EtatCompte -[hidden]down- RoleCompte
+RoleCompte -[hidden]down- EtatPartie
 EtatPartie -[hidden]down- Resultat
 Resultat -[hidden]down- MotifFin
 MotifFin -[hidden]down- Couleur
