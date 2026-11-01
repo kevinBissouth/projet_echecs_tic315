@@ -3,3 +3,6 @@ docs/*.md
 
 # Python
 __pycache__/
+
+# Maven
+target/
