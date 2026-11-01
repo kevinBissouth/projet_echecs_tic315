@@ -11,7 +11,10 @@
 '   case de départ pour calculer ses déplacements ;
 ' - MotifFin est ici, car Plateau::situationFinale() le renvoie : le placer dans
 '   metier.partie créerait un cycle entre les deux packages.
-' Polymorphisme (GRASP) : chaque pièce calcule ses propres déplacements.
+' - casesAttaquees() est séparée de deplacementsPossibles() : le roque demande si une
+'   case est attaquée, et cette question ne doit pas dépendre des coups de l'autre roi ;
+' - les pièces en jeu s'atteignent par les cases, les pièces prises par leur coup.
+' Polymorphisme (GRASP) : chaque pièce calcule ses propres cases attaquées.
 ' Un coup est immuable ({readOnly}) : l'historique ne se réécrit pas (RG7) ; son
 ' constructeur reçoit ses attributs et ses rôles, il n'est pas dessiné.
 
@@ -28,10 +31,15 @@ package metier.jeu {
     + Plateau()
     + caseEn(colonne : String, rangee : int) : Case
     + estLegal(depart : Case, arrivee : Case) : boolean
+    + destinationsLegales(depart : Case) : List<Case>
     + deplacer(depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Piece [0..1]
     + situationFinale(couleur : Couleur) : MotifFin [0..1]
     + enEchec(couleur : Couleur) : boolean
-    + position() : String
+    + estAttaquee(visee : Case, attaquant : Couleur) : boolean
+    + peutMater(couleur : Couleur) : boolean
+    + position(trait : Couleur) : String
+    ~ decaler(depart : Case, direction : Direction) : Case [0..1]
+    ~ copie() : Plateau
     - laisseRoiEnEchec(depart : Case, arrivee : Case) : boolean
     - materielInsuffisant() : boolean
   }
@@ -43,30 +51,38 @@ package metier.jeu {
     ~ placer(piece : Piece [0..1])
   }
 
+  class Direction <<record>> {
+    - colonnes : int {readOnly}
+    - rangees : int {readOnly}
+  }
+
   abstract class Piece {
     - couleur : Couleur {readOnly}
     - nombreDeplacements : int = 0
     + aDejaBouge() : boolean
-    + {abstract} deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+    + {abstract} casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
+    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
     ~ marquerDeplacee()
   }
 
   class Roi {
+    + casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
     + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
   }
   class Dame {
-    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+    + casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
   }
   class Tour {
-    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+    + casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
   }
   class Fou {
-    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+    + casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
   }
   class Cavalier {
-    + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+    + casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
   }
   class Pion {
+    + casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
     + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
   }
 
@@ -109,7 +125,6 @@ Piece <|-- Cavalier
 Piece <|-- Pion
 
 Plateau "1" *--> "                    64\n                    cases" Case
-Plateau "1" *--> "32..*\npieces" Piece
 Case "0..1                      " --> "\n\n0..1\npiece" Piece
 Coup "0..*" --> "1\ndepart" Case
 Coup "0..*" --> "1\narrivee" Case
