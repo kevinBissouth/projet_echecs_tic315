@@ -104,6 +104,7 @@ package metier.partie {
   }
 
   class Cadence {
+    + {static} DISPONIBLES : List<Cadence> {readOnly}
     - tempsDeBase : Duration {readOnly}
     - increment : Duration {readOnly}
     - categorie : CategorieCadence {readOnly}

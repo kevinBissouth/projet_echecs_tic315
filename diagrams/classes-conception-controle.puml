@@ -10,6 +10,9 @@
 ' - inversion des dépendances (SOLID) et Fabrication pure (GRASP) : les interfaces
 '   des services externes et des dépôts appartiennent à controle, leurs
 '   implémentations à infrastructure ; le métier n'en dépend pas.
+' - file d'actions par partie (FilesDeParties) : le serveur traite les joueurs en parallèle,
+'   mais une partie traite une action à la fois ; le moteur réfléchit hors de la file ;
+' - ArchivagePartie est un observateur : il enregistre une partie quand elle se termine.
 ' Les classes de metier ne montrent que leur nom (voir classes-conception-*.puml).
 
 hide circle
@@ -35,13 +38,13 @@ package controle {
     + rejoindrePartie(partie : PartieEntreJoueurs)
     + refuserInvitation(partie : PartieEntreJoueurs)
     + annulerPartie()
-    + jouerCoup(depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
+    + jouerCoup(depart : String, arrivee : String, promotion : TypePromotion [0..1]) : Coup
     + proposerNulle()
     + repondreNulle(accepte : boolean)
     + abandonner()
     + demarrerPartieContreOrdinateur(force : int, couleur : Couleur)
     + revoirPartie(partie : Partie) : List<Coup>
-    - faireJouerOrdinateur()
+    - faireJouerOrdinateur(partie : PartieContreOrdinateur)
   }
 
   ' Ce que le site peut demander : les opérations publiques de chaque contrôleur.
@@ -79,7 +82,21 @@ package controle {
     + tous() : List<Joueur>
   }
 
+  class FilesDeParties {
+    + executer(partie : Partie, action : Supplier<T>) : T
+    + verifierToutesLesPendules()
+    ~ ajouter(partie : Partie)
+    ~ liberer(partie : Partie)
+  }
+
+  class ArchivagePartie {
+    + actualiser(partie : Partie)
+  }
+
   class MoteurIndisponibleException
+  class ConnexionRefuseeException
+  class CompteRefuseException
+  class ActionRefuseeException
 }
 
 package infrastructure {
@@ -106,6 +123,7 @@ package metier {
 }
 
 ObservateurPartie <|.. VuePartie
+ObservateurPartie <|.. ArchivagePartie
 IPartie <|.. ControleurPartie
 ICompte <|.. ControleurCompte
 MoteurEchecs <|.. AdaptateurStockfish
@@ -120,11 +138,16 @@ ControleurPartie "0..*" --> "0..1\npartieCourante" Partie
 ControleurPartie "0..*" --> "1\nmoteur" MoteurEchecs
 ControleurPartie "0..*" --> "1\ncalcul" CalculClassement
 ControleurPartie "0..*" --> "1\ndepotParties" DepotParties
-ControleurPartie "0..*" --> "1\ndepotJoueurs" DepotJoueurs
+ControleurPartie "0..*" --> "1\nfiles" FilesDeParties
+ControleurCompte "0..*" --> "1\nfiles" FilesDeParties
+ControleurPartie "1" *--> "1\narchivage" ArchivagePartie
 ControleurCompte "0..*" --> "1\nauthentification" ServiceAuthentification
 ControleurCompte "0..*" --> "1\ndepotJoueurs" DepotJoueurs
 ControleurCompte "0..*" --> "1\ndepotParties" DepotParties
 
 MoteurEchecs ..> MoteurIndisponibleException : <<throws>>
+ServiceAuthentification ..> ConnexionRefuseeException : <<throws>>
+ControleurCompte ..> CompteRefuseException : <<throws>>
+ControleurPartie ..> ActionRefuseeException : <<throws>>
 
 @enduml
