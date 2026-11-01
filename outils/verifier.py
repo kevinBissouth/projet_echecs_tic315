@@ -26,6 +26,12 @@ DESIGN_SEQUENCE_PREFIX = "sequence-conception-"
 # In design sequences, only the actors are outside the class model
 DESIGN_NON_CLASS_LIFELINES = {"joueur", "adversaire"}
 ABSTRACT_STATE = "EtatDePartie"
+# Markdown sources stay out of Git: a fresh clone cannot run the document checks
+TRACEABILITY_DOCUMENT = DOCS / "matrice-tracabilite.md"
+REQUIRED_DOCUMENTS = (DOCS / "cahier-des-charges.md", DOCS / "fiches-cas-utilisation.md", OCL_DOCUMENT,
+                      TRACEABILITY_DOCUMENT)
+TEST_CLASS_SUFFIX = "Test"
+EXIT_MISSING_DOCUMENTS = 2
 # UML visibilities: public, private, package, protected
 VISIBILITY = r"[+\-~#]"
 
@@ -197,7 +203,23 @@ def check_ocl_names(classes: str) -> list[str]:
     return sorted(set(problems))
 
 
+def check_traceability() -> list[str]:
+    matrix = read(TRACEABILITY_DOCUMENT)
+    use_cases = set(re.findall(r'as (UC\d+)\b', read(DIAGRAMS / "cas-utilisation.puml")))
+    listed = set(re.findall(r"^\| (UC\d+) ", matrix, re.M))
+    designed = {name for diagram in DIAGRAMS.glob("classes-conception-*.puml")
+                for name in re.findall(r"^\s*(?:abstract )?(?:class|interface) (\w+)", read(diagram), re.M)}
+    cited = {name for name in re.findall(r"`([A-Z]\w+)`", matrix) if not name.endswith(TEST_CLASS_SUFFIX)}
+    return ([f"cas absent de la matrice : {case}" for case in sorted(use_cases - listed)]
+            + [f"classe absente de la conception : {name}" for name in sorted(cited - designed)])
+
+
 def main() -> int:
+    missing = [document.name for document in REQUIRED_DOCUMENTS if not document.exists()]
+    if missing:
+        print(f"Vérification impossible : sources absentes de docs/ ({', '.join(missing)}).")
+        print("Les .md ne sont pas versionnés : lancer ce script depuis le poste qui les détient.")
+        return EXIT_MISSING_DOCUMENTS
     classes = read(DIAGRAMS / "classes-domaine.puml")
     operations = class_operations(classes)
     checks = {
@@ -214,6 +236,7 @@ def main() -> int:
         "Besoins → cas d'utilisation": check_needs_coverage(),
         "Contraintes OCL : document ↔ notes des vues": check_ocl_notes(),
         "Contraintes OCL : noms → modèle du domaine": check_ocl_names(classes),
+        "Matrice de traçabilité : cas et classes": check_traceability(),
     }
     failures = 0
     for name, problems in checks.items():
