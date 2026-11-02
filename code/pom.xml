@@ -13,6 +13,7 @@
     <module>metier</module>
     <module>controle</module>
     <module>infrastructure</module>
+    <module>ihm</module>
   </modules>
 
   <properties>

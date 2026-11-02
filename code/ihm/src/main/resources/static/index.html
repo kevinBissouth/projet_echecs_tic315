@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Essai d'hébergement</title>
+</head>
+<body>
+  <h1>Essai d'hébergement</h1>
+  <p><button id="sante">Mémoire</button> <button id="moteur">Stockfish</button> <button id="ws">WebSocket</button></p>
+  <pre id="resultat"></pre>
+  <script>
+    const resultat = document.getElementById("resultat");
+    const afficher = texte => { resultat.textContent += texte + "\n"; };
+    const appeler = async (adresse, options) => {
+      const reponse = await fetch(adresse, options);
+      afficher(reponse.status + " " + await reponse.text());
+    };
+    document.getElementById("sante").onclick = () => appeler("/api/essai/sante");
+    document.getElementById("moteur").onclick = () => appeler("/api/essai/moteur", {method: "POST"});
+    document.getElementById("ws").onclick = () => {
+      const schema = location.protocol === "https:" ? "wss://" : "ws://";
+      const connexion = new WebSocket(schema + location.host + "/ws/essai");
+      connexion.onopen = () => connexion.send("bonjour");
+      connexion.onmessage = message => { afficher(message.data); connexion.close(); };
+      connexion.onerror = () => afficher("Erreur WebSocket");
+    };
+  </script>
+</body>
+</html>
