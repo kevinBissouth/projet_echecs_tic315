@@ -12,6 +12,7 @@
   <modules>
     <module>metier</module>
     <module>controle</module>
+    <module>infrastructure</module>
   </modules>
 
   <properties>
