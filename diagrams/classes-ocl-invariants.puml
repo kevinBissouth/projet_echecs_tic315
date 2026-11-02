@@ -6,7 +6,7 @@
 ' attributs et les rôles utilisés par les contraintes ; leur contenu complet est dans
 ' classes-domaine.puml. Comme dans la figure 28 du cours, chaque contrainte est une
 ' note rattachée à sa classe de contexte.
-' Le texte OCL est celui de docs/contraintes-ocl.md, qui le justifie : le modifier
+' Le texte OCL est celui de docs/contraintes-ocl.pdf, qui le justifie : le modifier
 ' aux deux endroits.
 
 title Contraintes OCL du domaine (1/2) : invariants et attributs dérivés

@@ -1,7 +1,7 @@
 @startuml classes-conception-joueur
 ' Diagramme de classes de conception — package metier.joueur (jalon J4).
 ' Ce package ne dépend d'aucun autre : c'est metier.partie qui dépend de lui.
-' Décisions justifiées dans docs/conception.md :
+' Décisions justifiées dans docs/conception.pdf :
 ' - un joueur est identifié par son pseudo, unique par RG12 (equals, hashCode) ;
 ' - navigabilité Partie → Joueur seulement, pour éviter un cycle entre packages ;
 '   Joueur garde un indicateur « occupe », tenu à jour par la partie, qui suffit à

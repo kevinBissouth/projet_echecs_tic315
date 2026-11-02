@@ -6,9 +6,11 @@
 ' interfaces, jamais par des classes internes (cours, §2.4.2).
 ' ObservateurPartie est le patron Observateur demandé par le sujet : ce sont les écrans
 ' des deux joueurs de la partie. Le système ne gère pas de spectateurs.
+' Service Parties archive aussi les joueurs d'une partie finie (DepotJoueurs) et fournit
+' sa file d'actions : Service Comptes y passe pour retirer un joueur suspendu de sa partie.
 
 skinparam componentStyle uml2
-skinparam nodesep 50
+skinparam nodesep 75
 skinparam ranksep 55
 
 component "Application Web\n(Front)" as Front
@@ -29,6 +31,7 @@ interface "MoteurEchecs" as IMoteur
 interface "ServiceAuthentification" as IAuthentification
 interface "DepotParties" as IDepotParties
 interface "DepotJoueurs" as IDepotJoueurs
+interface "FilesDeParties" as IFiles
 interface "UCI" as Uci
 interface "OpenID Connect" as Oidc
 
@@ -44,6 +47,9 @@ ServiceParties ..> ICalcul
 
 ServiceParties ..> IMoteur
 ServiceParties ..> IDepotParties
+ServiceParties ..> IDepotJoueurs
+ServiceParties -right- IFiles
+ServiceComptes ..> IFiles
 ServiceComptes ..> IAuthentification
 ServiceComptes ..> IDepotJoueurs
 ServiceComptes ..> IDepotParties

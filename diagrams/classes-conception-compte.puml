@@ -1,0 +1,52 @@
+@startuml classes-conception-compte
+' Diagramme de classes de conception — ControleurCompte, du package controle (jalon J4).
+' Comptes, connexion et rôle administrateur (RG8, RG12, RG14, RG17) ; séparé de
+' classes-conception-controle.puml pour rester lisible une fois imprimé.
+' Un joueur suspendu est retiré de sa partie en passant par la file d'actions de celle-ci.
+' Décisions justifiées dans docs/conception.pdf.
+
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 70
+
+package controle {
+  interface ICompte <<interface>>
+
+  class ControleurCompte {
+    + creerCompte(pseudo : String, email : String) : Joueur
+    + seConnecter(jeton : String) : Joueur
+    + consulterClassements(joueur : Joueur) : Map<CategorieCadence, Classement>
+    + creerAdministrateurInitial(pseudo : String, email : String)
+    + consulterComptes(appelant : Joueur) : List<Joueur>
+    + suspendre(appelant : Joueur, joueur : Joueur)
+    + reactiver(appelant : Joueur, joueur : Joueur)
+    + nommerAdministrateur(appelant : Joueur, joueur : Joueur)
+  }
+
+  interface ServiceAuthentification <<interface>> {
+    + verifierIdentite(jeton : String) : String
+  }
+
+  interface DepotJoueurs <<interface>>
+  interface DepotParties <<interface>>
+  class FilesDeParties
+
+  class ConnexionRefuseeException
+  class CompteRefuseException
+  class AccesRefuseException
+}
+
+ICompte <|.. ControleurCompte
+
+ControleurCompte "0..*" --> "1\nauthentification" ServiceAuthentification
+ControleurCompte "0..*" --> "1\ndepotJoueurs" DepotJoueurs
+ControleurCompte "0..*" --> "1\ndepotParties" DepotParties
+ControleurCompte "0..*" --> "1\nfiles" FilesDeParties
+
+ServiceAuthentification ..> ConnexionRefuseeException : <<throws>>
+ControleurCompte ..> CompteRefuseException : <<throws>>
+ControleurCompte ..> AccesRefuseException : <<throws>>
+
+@enduml

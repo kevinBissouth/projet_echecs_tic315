@@ -15,8 +15,13 @@
 hide circle
 hide empty methods
 skinparam classAttributeIconSize 0
-skinparam nodesep 90
+skinparam nodesep 30
 skinparam ranksep 70
+left to right direction
+' Les énumérations restent définies ici, mais s'affichent dans la vue
+' classes-enumerations.puml : elles élargissaient l'image au point de la rendre
+' illisible une fois imprimée.
+remove <<enumeration>>
 
 ' ---- Joueurs et parties ----
 
@@ -92,7 +97,7 @@ PartieEntreJoueurs "0..*" --> "1" Cadence
 
 ' Association qualifiée (cours, §2.1.8) : un joueur et une catégorie donnent
 ' exactement un classement, soit un classement par famille de cadence.
-Joueur [categorie : CategorieCadence] "\n\n1" *-- "1" Classement
+Joueur [categorie : CategorieCadence] "1" *- "1" Classement
 
 ' ---- Plateau, pièces et coups ----
 
@@ -146,16 +151,16 @@ class Coup {
 }
 
 Partie "1" *-- "1" Plateau
-Plateau "1" *-- "       64\n       cases" Case
+Plateau "1" *-- "64\ncases" Case
 Plateau "1" *-- "32..*\npieces" Piece
-Piece "0..1" -- "0..1         \n" Case : occupe >
+Piece "            0..1" - "            0..1" Case : occupe >
 
-Partie "\n\n1" *-- "0..*\ncoups {ordered}" Coup
-Coup "0..*" --> "1\ndepart" Case
-Coup "0..*" --> "1\narrivee" Case
-Coup "0..*" -left-> "1 pieceJouee" Piece
-Coup "0..*" -left-> "0..1 piecePrise" Piece
-Coup "0..*" -left-> "0..1 piecePromue" Piece
+Partie "1" *-- "0..*\ncoups {ordered}" Coup
+Coup "0..*" --> "1 depart" Case
+Coup "         0..*" --> "1 arrivee" Case
+Coup "0..*" --> "1 pieceJouee" Piece
+Coup "0..*" --> "0..1 piecePrise" Piece
+Coup "0..*" --> "0..1 piecePromue" Piece
 
 ' ---- Énumérations ----
 
@@ -216,20 +221,13 @@ enum TypePromotion <<enumeration>> {
 legend bottom right
   <b>Contraintes OCL (J4)</b>
   Les règles que les multiplicités
-  n'expriment pas : docs/contraintes-ocl.md,
+  n'expriment pas : docs/contraintes-ocl.pdf,
   vues classes-ocl-invariants
   et classes-ocl-contrats.
 endlegend
 
 ' ---- Mise en page uniquement (liens invisibles, sans effet sur le modèle) ----
-' Des espaces insécables décalent les étiquettes « 64 cases » et « 0..1 »
-' (occupe), qui arrivent au même point de Case et se superposeraient ; de même
-' « 1 » (coups), descendu de deux lignes, et « 0..* » (participants), sous Partie.
-' L'image est limitée à 4096 pixels de large : pièces sur deux rangées,
-' énumérations empilées en colonne.
-Roi -[hidden]down- Fou
-Dame -[hidden]down- Cavalier
-Tour -[hidden]down- Pion
+' De gauche à droite : les pièces s'empilent au lieu de s'étaler en largeur.
 EtatCompte -[hidden]down- RoleCompte
 RoleCompte -[hidden]down- EtatPartie
 EtatPartie -[hidden]down- Resultat

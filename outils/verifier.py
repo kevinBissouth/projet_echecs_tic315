@@ -84,7 +84,7 @@ def check_state_events(operations: set[str]) -> list[str]:
 
 def check_state_pattern() -> list[str]:
     """Pattern State: each event of the state diagram is an operation of the abstract state."""
-    design = read(DIAGRAMS / "classes-conception-partie.puml")
+    design = read(DIAGRAMS / "classes-conception-etat.puml")
     abstract_state = re.search(rf"class {ABSTRACT_STATE} \{{(.*?)^\s*\}}", design, re.M | re.S)
     if abstract_state is None:
         return [f"classe {ABSTRACT_STATE} introuvable"]

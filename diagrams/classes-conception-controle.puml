@@ -1,27 +1,29 @@
 @startuml classes-conception-controle
-' Diagramme de classes de conception — packages ihm, controle et infrastructure
-' (jalon J4). Décisions justifiées dans docs/conception.md :
+' Diagramme de classes de conception — ihm et ControleurPartie, du package controle
+' (jalon J4). Décisions justifiées dans docs/conception.pdf :
 ' - MVC : la vue appelle le contrôleur ; la partie (modèle) prévient la vue par le
 '   patron Observateur, sans la connaître ;
+' - comptes et connexion : voir classes-conception-compte.puml, séparé pour rester lisible ;
 ' - Contrôleur (GRASP) : un ControleurPartie par session de joueur reçoit les
 '   actions et délègue au métier ; il connaît le joueur connecté et sa partie ;
-' - Adaptateur : AdaptateurStockfish traduit MoteurEchecs en protocole UCI,
-'   AdaptateurOpenIdConnect traduit ServiceAuthentification en OpenID Connect ;
+' - Adaptateur : les implémentations de MoteurEchecs, ServiceAuthentification et des
+'   dépôts sont dans classes-conception-infrastructure.puml ;
 ' - inversion des dépendances (SOLID) et Fabrication pure (GRASP) : les interfaces
 '   des services externes et des dépôts appartiennent à controle, leurs
 '   implémentations à infrastructure ; le métier n'en dépend pas.
 ' - file d'actions par partie (FilesDeParties) : le serveur traite les joueurs en parallèle,
 '   mais une partie traite une action à la fois ; le moteur réfléchit hors de la file ;
-' - ArchivagePartie est un observateur : il enregistre une partie quand elle se termine.
+' - ArchivagePartie est un observateur : quand une partie se termine, il enregistre la partie
+'   et ses joueurs, puis libère sa file.
 ' Les classes de metier ne montrent que leur nom (voir classes-conception-*.puml).
 
 hide circle
 hide empty members
 skinparam classAttributeIconSize 0
-skinparam nodesep 40
-skinparam ranksep 70
+skinparam nodesep 20
+skinparam ranksep 50
 ' Boîtes des classes de metier assez larges pour que leurs rôles ne se superposent pas.
-skinparam minClassWidth 150
+skinparam minClassWidth 135
 
 package ihm {
   class VuePartie {
@@ -47,27 +49,11 @@ package controle {
     - faireJouerOrdinateur(partie : PartieContreOrdinateur)
   }
 
-  ' Ce que le site peut demander : les opérations publiques de chaque contrôleur.
+  ' Ce que le site peut demander : les opérations publiques du contrôleur.
   interface IPartie <<interface>>
-  interface ICompte <<interface>>
-
-  class ControleurCompte {
-    + creerCompte(pseudo : String, email : String) : Joueur
-    + seConnecter(jeton : String) : Joueur
-    + consulterClassements(joueur : Joueur) : Map<CategorieCadence, Classement>
-    + creerAdministrateurInitial(pseudo : String, email : String)
-    + consulterComptes(appelant : Joueur) : List<Joueur>
-    + suspendre(appelant : Joueur, joueur : Joueur)
-    + reactiver(appelant : Joueur, joueur : Joueur)
-    + nommerAdministrateur(appelant : Joueur, joueur : Joueur)
-  }
 
   interface MoteurEchecs <<interface>> {
     + calculerCoup(position : String, force : int) : String
-  }
-
-  interface ServiceAuthentification <<interface>> {
-    + verifierIdentite(jeton : String) : String
   }
 
   interface DepotParties <<interface>> {
@@ -96,26 +82,7 @@ package controle {
   }
 
   class MoteurIndisponibleException
-  class ConnexionRefuseeException
-  class CompteRefuseException
   class ActionRefuseeException
-  class AccesRefuseException
-}
-
-package infrastructure {
-  class AdaptateurStockfish {
-    - delaiDeReponse : Duration {readOnly}
-    + calculerCoup(position : String, force : int) : String
-    - envoyerCommande(commande : String)
-    - lireMeilleurCoup() : String
-  }
-
-  class AdaptateurOpenIdConnect {
-    + verifierIdentite(jeton : String) : String
-  }
-
-  class DepotPartiesSql
-  class DepotJoueursSql
 }
 
 package metier {
@@ -128,30 +95,21 @@ package metier {
 ObservateurPartie <|.. VuePartie
 ObservateurPartie <|.. ArchivagePartie
 IPartie <|.. ControleurPartie
-ICompte <|.. ControleurCompte
-MoteurEchecs <|.. AdaptateurStockfish
-ServiceAuthentification <|.. AdaptateurOpenIdConnect
-DepotParties <|.. DepotPartiesSql
-DepotJoueurs <|.. DepotJoueursSql
 
 VuePartie "1" --> "1\ncontroleur" IPartie
-ControleurPartie "0..1" --> "1\nvue" ObservateurPartie
-ControleurPartie "0..1" --> "1\njoueurConnecte" Joueur
-ControleurPartie "0..*" --> "0..1\npartieCourante" Partie
+ControleurPartie "0..1" --> "          1 vue" ObservateurPartie
+ControleurPartie "        0..1" --> "1 joueurConnecte" Joueur
+ControleurPartie "  0..*" --> "0..1 partieCourante" Partie
 ControleurPartie "0..*" --> "1\nmoteur" MoteurEchecs
-ControleurPartie "0..*" --> "1\ncalcul" CalculClassement
+ControleurPartie "  0..*" --> "            1 calcul" CalculClassement
 ControleurPartie "0..*" --> "1\ndepotParties" DepotParties
 ControleurPartie "0..*" --> "1\nfiles" FilesDeParties
-ControleurCompte "0..*" --> "1\nfiles" FilesDeParties
 ControleurPartie "1" *--> "1\narchivage" ArchivagePartie
-ControleurCompte "0..*" --> "1\nauthentification" ServiceAuthentification
-ControleurCompte "0..*" --> "1\ndepotJoueurs" DepotJoueurs
-ControleurCompte "0..*" --> "1\ndepotParties" DepotParties
+ArchivagePartie "0..*" --> "1\ndepotParties" DepotParties
+ArchivagePartie "0..*" --> "1\ndepotJoueurs" DepotJoueurs
+ArchivagePartie "0..*" --> "1\nfiles" FilesDeParties
 
 MoteurEchecs ..> MoteurIndisponibleException : <<throws>>
-ServiceAuthentification ..> ConnexionRefuseeException : <<throws>>
-ControleurCompte ..> CompteRefuseException : <<throws>>
-ControleurCompte ..> AccesRefuseException : <<throws>>
 ControleurPartie ..> ActionRefuseeException : <<throws>>
 
 @enduml

@@ -28,8 +28,7 @@ alt conditions remplies
   partie -> partie ++ : attribuerCouleurs()
   deactivate partie
   create "pBob : Participation" as pBob
-  partie --> pBob ++ : <<create>> Participation(bob, couleur)
-  deactivate pBob
+  partie --> pBob : <<create>> Participation(bob, couleur)
   partie -> pCreateur ++ : definirCouleur(couleurOpposee)
   deactivate pCreateur
   partie -> partie ++ : demarrer()

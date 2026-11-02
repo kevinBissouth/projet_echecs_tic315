@@ -30,9 +30,9 @@ node "Service de base de données" <<device>> as ServiceBase {
 node "Fournisseur d'identité\n(Google)" <<device>> as Fournisseur
 
 Appareil -- Hebergeur : HTTPS, WebSocket sécurisé
-Appareil -- Fournisseur : HTTPS (connexion)
+Appareil -right- Fournisseur : HTTPS (connexion)
 Jar ..> Stockfish : UCI
 Hebergeur -- ServiceBase : JDBC
-Hebergeur -- Fournisseur : HTTPS (OpenID Connect)
+Fournisseur -- Hebergeur : HTTPS (OpenID Connect)
 
 @enduml

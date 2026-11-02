@@ -22,9 +22,8 @@ break le joueur ne peut pas jouer (RG8, RG11)
   controleur --> joueur : refus
 end
 create partie
-controleur --> partie ++ : <<create>> PartieContreOrdinateur(joueurCourant, force, couleur)
+controleur --> partie : <<create>> PartieContreOrdinateur(joueurCourant, force, couleur)
 note right of partie : crée son plateau en position\ninitiale et la participation\ndu joueur ; état EN_COURS
-deactivate partie
 controleur --> joueur : afficher le plateau
 
 ' Une itération = un seul coup : si le coup du joueur termine la partie,

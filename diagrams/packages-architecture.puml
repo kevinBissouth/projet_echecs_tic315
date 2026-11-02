@@ -7,7 +7,9 @@
 ' - inversion des dépendances : infrastructure implémente des interfaces de controle,
 '   si bien que controle ne connaît ni Stockfish, ni OpenID Connect, ni la base ;
 ' - MVC : la vue (ihm) dépend du contrôleur et du modèle ; le modèle la prévient par
-'   l'interface ObservateurPartie, qu'il possède.
+'   l'interface ObservateurPartie, qu'il possède ;
+' - ihm dépend de infrastructure pour une seule raison : Application y choisit les
+'   adaptateurs à brancher sur les interfaces de controle.
 ' Les classes de chaque package sont listées dans le dossier de conception.
 
 skinparam nodesep 60
@@ -36,6 +38,7 @@ package JDBC <<external>> {
 }
 
 ihm ..> controle
+ihm ..> infrastructure
 ihm ..> partie
 ihm ..> jeu
 ihm ..> Spring

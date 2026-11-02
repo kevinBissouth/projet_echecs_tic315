@@ -7,7 +7,7 @@
 ' attributs, rôles et opérations utilisés par les contraintes ; leur contenu complet
 ' est dans classes-domaine.puml. Chaque contrat est une note rattachée à la classe
 ' qui porte l'opération (cours, figure 28).
-' Le texte OCL est celui de docs/contraintes-ocl.md, qui le justifie : le modifier
+' Le texte OCL est celui de docs/contraintes-ocl.pdf, qui le justifie : le modifier
 ' aux deux endroits.
 
 title Contraintes OCL du domaine (2/2) : requête et contrats d'opérations

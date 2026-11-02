@@ -4,6 +4,8 @@
 ' Chaque intervenant agit dans son couloir ; le flux passe d'un couloir à l'autre
 ' à chaque échange. Chaque décision a des gardes exhaustives ; chaque chemin se
 ' termine par un nœud final.
+' Si/sinon imbriqués plutôt que switch : avec plusieurs couloirs, PlantUML 1.2024.3 perd
+' les flèches d'un switch dont la branche commence dans un autre couloir.
 
 title De la création d'une partie entre joueurs à son début
 
@@ -30,47 +32,41 @@ et la participation du créateur;
 :Publier la partie ouverte
 ou notifier le joueur invité;
 
-switch (Premier événement reçu ?)
-case ([le créateur annule])
-  |Créateur|
-  :Annuler sa partie;
-  |Système|
+if (Le créateur annule, ou l'administrateur\nle suspend (RG8) ?) then ([oui])
   :Clore la partie sans résultat (RG15);
   :Retirer la partie publiée
   ou prévenir l'invité;
   stop
-case ([le créateur est suspendu\npar l'administrateur (RG8)])
-  :Clore la partie sans résultat (RG15);
-  :Retirer la partie publiée
-  ou prévenir l'invité;
-  stop
-case ([l'invité refuse])
-  |Adversaire|
-  :Refuser l'invitation;
-  |Système|
-  :Clore la partie sans résultat (RG15);
-  :Notifier le créateur du refus;
-  |Créateur|
-  :Prendre connaissance du refus;
-  stop
-case ([un adversaire autorisé\nrejoint (RG8, RG11, RG13)])
-  |Adversaire|
-  :Rejoindre la partie;
-  |Système|
-  :Attribuer les couleurs;
-  :Créer la participation de l'adversaire;
-  :Démarrer la partie
-  et la pendule des blancs;
-  fork
-    |Créateur|
-    :Recevoir la notification :
-    adversaire arrivé;
-  fork again
+else ([non])
+  if (L'invité refuse ?) then ([oui])
     |Adversaire|
-    :Voir le plateau de départ;
-  end fork
-  ' Chaque branche se termine par son propre nœud final : pas de fusion inutile.
-  stop
-endswitch
+    :Refuser l'invitation;
+    |Système|
+    :Clore la partie sans résultat (RG15);
+    :Notifier le créateur du refus;
+    |Créateur|
+    :Prendre connaissance du refus;
+    stop
+  else ([non : un adversaire\nautorisé rejoint])
+    |Adversaire|
+    :Rejoindre la partie
+    (RG8, RG11, RG13);
+    |Système|
+    :Attribuer les couleurs;
+    :Créer la participation de l'adversaire;
+    :Démarrer la partie
+    et la pendule des blancs;
+    fork
+      |Créateur|
+      :Recevoir la notification :
+      adversaire arrivé;
+    fork again
+      |Adversaire|
+      :Voir le plateau de départ;
+    end fork
+    ' Chaque branche se termine par son propre nœud final : pas de fusion inutile.
+    stop
+  endif
+endif
 
 @enduml

@@ -1,0 +1,49 @@
+@startuml classes-conception-infrastructure
+' Diagramme de classes de conception — package infrastructure (jalon J4).
+' Patron Adaptateur : chaque classe traduit une interface de controle vers un service
+' externe. AdaptateurStockfish lance un processus par demande, lui parle en UCI et le
+' tue si le délai de réponse est dépassé. Le lancement du processus reste privé.
+' Inversion des dépendances (SOLID) : les interfaces appartiennent à controle, leurs
+' implémentations à infrastructure. Décisions justifiées dans docs/conception.pdf.
+
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 70
+
+package controle {
+  interface MoteurEchecs <<interface>>
+  interface ServiceAuthentification <<interface>>
+  interface DepotParties <<interface>>
+  interface DepotJoueurs <<interface>>
+}
+
+package infrastructure {
+  class AdaptateurStockfish {
+    - executable : String {readOnly}
+    - tempsDeReflexion : Duration {readOnly}
+    - delaiDeReponse : Duration {readOnly}
+    + calculerCoup(position : String, force : int) : String
+    - lancer() : Process
+    - dialoguer(processus : Process, position : String, force : int) : String
+    - attendre(coup : Future<String>, processus : Process) : String
+    - {static} envoyerCommande(entree : BufferedWriter, commande : String)
+    - {static} lireMeilleurCoup(sortie : BufferedReader) : String
+    - {static} borner(force : int) : int
+  }
+
+  class AdaptateurOpenIdConnect {
+    + verifierIdentite(jeton : String) : String
+  }
+
+  class DepotPartiesSql
+  class DepotJoueursSql
+}
+
+MoteurEchecs <|.. AdaptateurStockfish
+ServiceAuthentification <|.. AdaptateurOpenIdConnect
+DepotParties <|.. DepotPartiesSql
+DepotJoueurs <|.. DepotJoueursSql
+
+@enduml

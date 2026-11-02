@@ -1,0 +1,41 @@
+@startuml sequence-conception-terminer-partie
+' Séquence de conception détaillée — fin d'une partie entre joueurs (jalon J4), référencée
+' par sequence-conception-jouer-coup. Elle montre deux patrons de la conception :
+' - État : la partie passe à EtatTerminee ;
+' - Stratégie : le calcul Elo donne la variation de chaque classement (RG6).
+' Chaque message vers un objet est une opération des classes de conception.
+' « order » place l'état créé en cours de route à côté de l'état courant.
+
+autonumber
+hide footbox
+
+participant "enCours : EtatEnCours" as enCours order 10
+participant "partie : PartieEntreJoueurs" as partie order 20
+participant "j : Joueur" as j order 40
+participant "calcul : CalculElo" as calcul order 50
+participant "blancs : Classement" as classementBlancs order 60
+participant "noirs : Classement" as classementNoirs order 70
+
+enCours -> partie ++ : terminer(resultat, motif)
+create "terminee : EtatTerminee" as terminee order 30
+partie --> terminee : <<create>>
+partie -> partie ++ : changerEtat(terminee)
+deactivate partie
+loop chaque participant j
+  partie -> j ++ : liberer()
+  deactivate j
+end
+partie -> partie ++ : mettreAJourClassements()
+note left : Stratégie : la formule\nest dans CalculElo (RG6)
+partie -> calcul ++ : variation(pointsBlancs, pointsNoirs, scoreBlancs)
+calcul --> partie -- : variationBlancs
+partie -> classementBlancs ++ : modifierPoints(variationBlancs)
+deactivate classementBlancs
+partie -> calcul ++ : variation(pointsNoirs, pointsBlancs, 1 - scoreBlancs)
+calcul --> partie -- : variationNoirs
+partie -> classementNoirs ++ : modifierPoints(variationNoirs)
+deactivate classementNoirs
+deactivate partie
+deactivate partie
+
+@enduml

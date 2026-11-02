@@ -1,10 +1,9 @@
 @startuml classes-conception-partie
 ' Diagramme de classes de conception — package metier.partie (jalon J4).
 ' Issu du modèle du domaine (classes-domaine.puml) ; les décisions sont justifiées
-' dans docs/conception.md.
-' Patron État : une classe par état du diagramme d'états de la partie, une opération
-' par événement ; l'état par défaut refuse (TransitionInterditeException), chaque
-' état concret ne redéfinit que les événements qu'il accepte.
+' dans docs/conception.pdf.
+' Patron État : la partie délègue à son état courant ; ses classes sont détaillées
+' dans classes-conception-etat.puml, séparé pour rester lisible une fois imprimé.
 ' Les observateurs sont les écrans des deux joueurs : le système ne gère pas de spectateurs.
 ' Patron Observateur : la partie notifie ses observateurs (les vues, MVC) sans les
 ' connaître ; modèle « tiré » : l'observateur relit la partie qu'on lui passe.
@@ -23,12 +22,9 @@
 hide circle
 hide empty members
 skinparam classAttributeIconSize 0
-skinparam nodesep 50
-skinparam ranksep 60
-' Boîtes des classes étrangères assez larges pour que les rôles qui y arrivent
-' (createur, invite, joueur) ne se superposent pas ; des espaces insécables
-' décalent en plus « createur » vers la gauche et « joueur » vers la droite.
-skinparam minClassWidth 170
+skinparam nodesep 30
+skinparam ranksep 70
+left to right direction
 
 package metier.partie {
 
@@ -110,71 +106,21 @@ package metier.partie {
     - categorie : CategorieCadence {readOnly}
   }
 
-  abstract class EtatDePartie {
-    + {abstract} valeur() : EtatPartie
-    + rejoindre(partie : PartieEntreJoueurs, joueur : Joueur)
-    + refuserInvitation(partie : PartieEntreJoueurs, joueur : Joueur)
-    + annuler(partie : Partie, joueur : Joueur)
-    + annulerParLeSysteme(partie : Partie)
-    + jouerCoup(partie : Partie, joueur : Joueur [0..1], depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
-    + abandonner(partie : Partie, joueur : Joueur)
-    + proposerNulle(partie : PartieEntreJoueurs, joueur : Joueur)
-    + accepterNulle(partie : PartieEntreJoueurs, joueur : Joueur)
-    + refuserNulle(partie : PartieEntreJoueurs, joueur : Joueur)
-    + tempsEcoule(partie : PartieEntreJoueurs)
-  }
-
-  class EtatEnAttente {
-    + valeur() : EtatPartie
-    + rejoindre(partie : PartieEntreJoueurs, joueur : Joueur)
-    + refuserInvitation(partie : PartieEntreJoueurs, joueur : Joueur)
-    + annuler(partie : Partie, joueur : Joueur)
-    + annulerParLeSysteme(partie : Partie)
-  }
-
-  class EtatEnCours {
-    + valeur() : EtatPartie
-    + annuler(partie : Partie, joueur : Joueur)
-    + annulerParLeSysteme(partie : Partie)
-    + jouerCoup(partie : Partie, joueur : Joueur [0..1], depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
-    + abandonner(partie : Partie, joueur : Joueur)
-    + proposerNulle(partie : PartieEntreJoueurs, joueur : Joueur)
-    + accepterNulle(partie : PartieEntreJoueurs, joueur : Joueur)
-    + refuserNulle(partie : PartieEntreJoueurs, joueur : Joueur)
-    + tempsEcoule(partie : PartieEntreJoueurs)
-  }
-
-  class EtatTerminee {
-    + valeur() : EtatPartie
-  }
-
-  class EtatAnnulee {
-    + valeur() : EtatPartie
-  }
+  abstract class EtatDePartie
 
   interface ObservateurPartie <<interface>> {
     + actualiser(partie : Partie)
-  }
-
-  class TransitionInterditeException {
-    + TransitionInterditeException(evenement : String, etat : EtatPartie)
   }
 
   class CoupRefuseException {
     + CoupRefuseException(motif : String)
   }
 
-  enum EtatPartie <<enumeration>> {
-    EN_ATTENTE
-    EN_COURS
-    TERMINEE
-    ANNULEE
-  }
-
   enum Resultat <<enumeration>> {
     VICTOIRE_BLANCS
     VICTOIRE_NOIRS
     NULLE
+    ~ {static} victoireDe(couleur : Couleur) : Resultat
   }
 }
 
@@ -190,24 +136,19 @@ package metier.joueur {
 
 Partie <|-- PartieEntreJoueurs
 Partie <|-- PartieContreOrdinateur
-EtatDePartie <|-- EtatEnAttente
-EtatDePartie <|-- EtatEnCours
-EtatDePartie <|-- EtatTerminee
-EtatDePartie <|-- EtatAnnulee
 
-Partie "0..*" --> "1\netatCourant" EtatDePartie
+Partie "0..*" --> "1 etatCourant" EtatDePartie
 Partie "1" *--> "1..2\nparticipations" Participation
-Participation "0..*" --> "                                    1\n                                    joueur" Joueur
+Participation "0..*" --> "1 joueur" Joueur
 Partie "0..*" o--> "0..*\nobservateurs" ObservateurPartie
-Partie "1" *--> "1\nplateau" Plateau
-Partie "1" *--> "0..*\ncoups {ordered}" Coup
+Partie "                1" *--> "1 plateau" Plateau
+Partie "          1" *--> "0..* coups {ordered}" Coup
 
-PartieEntreJoueurs "0..*" --> "1                \ncreateur                " Joueur
-PartieEntreJoueurs "0..*" --> "0..1\ninvite" Joueur
-PartieEntreJoueurs "0..*" --> "1\ncadence" Cadence
-PartieEntreJoueurs "0..*" o--> "1\ncalcul" CalculClassement
+PartieEntreJoueurs "0..*" --> "1 createur" Joueur
+PartieEntreJoueurs "0..*" --> "0..1 invite" Joueur
+PartieEntreJoueurs "0..*" --> "1 cadence" Cadence
+PartieEntreJoueurs "0..*" o--> "1 calcul" CalculClassement
 
-EtatDePartie ..> TransitionInterditeException : <<throws>>
 Partie ..> CoupRefuseException : <<throws>>
 
 @enduml

@@ -1,7 +1,7 @@
 @startuml classes-conception-jeu
 ' Diagramme de classes de conception — package metier.jeu (jalon J4).
 ' Les règles des échecs, sans notion de joueur ni de partie : ce package ne dépend
-' d'aucun autre. Décisions justifiées dans docs/conception.md :
+' d'aucun autre. Décisions justifiées dans docs/conception.pdf :
 ' - le coup est créé par la partie, qui le contient (GRASP Créateur, comme dans
 '   sequence-jouer-coup) ; le plateau retient seulement la case où une prise en
 '   passant est possible, comme le champ correspondant de la notation FEN ;
@@ -15,6 +15,8 @@
 '   case est attaquée, et cette question ne doit pas dépendre des coups de l'autre roi ;
 ' - les pièces en jeu s'atteignent par les cases, les pièces prises par leur coup.
 ' Polymorphisme (GRASP) : chaque pièce calcule ses propres cases attaquées.
+' lettreFen(), initiale() et nouvelleInstance() sont redéfinies par chaque pièce, sans
+' décision de conception : ces redéfinitions ne sont pas répétées sur les six classes.
 ' Un coup est immuable ({readOnly}) : l'historique ne se réécrit pas (RG7) ; son
 ' constructeur reçoit ses attributs et ses rôles, il n'est pas dessiné.
 
@@ -40,6 +42,7 @@ package metier.jeu {
     + position(trait : Couleur) : String
     ~ decaler(depart : Case, direction : Direction) : Case [0..1]
     ~ copie() : Plateau
+    ~ {static} vide() : Plateau
     - laisseRoiEnEchec(depart : Case, arrivee : Case) : boolean
     - materielInsuffisant() : boolean
   }
@@ -47,6 +50,7 @@ package metier.jeu {
   class Case {
     - colonne : String {readOnly}
     - rangee : int {readOnly}
+    + nom() : String
     + estLibre() : boolean
     ~ placer(piece : Piece [0..1])
   }
@@ -63,6 +67,14 @@ package metier.jeu {
     + {abstract} casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
     + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
     ~ marquerDeplacee()
+    ~ copie() : Piece
+    ~ symboleFen() : char
+    ~ {abstract} lettreFen() : char
+    ~ {abstract} initiale() : String
+    ~ {abstract} nouvelleInstance() : Piece
+    # occupeeParUnAllie(visee : Case) : boolean
+    # casesEnLigne(plateau : Plateau, depart : Case, directions : List<Direction>) : List<Case>
+    # casesASaut(plateau : Plateau, depart : Case, directions : List<Direction>) : List<Case>
   }
 
   class Roi {
@@ -84,6 +96,7 @@ package metier.jeu {
   class Pion {
     + casesAttaquees(plateau : Plateau, depart : Case) : List<Case>
     + deplacementsPossibles(plateau : Plateau, depart : Case) : List<Case>
+    ~ atteintLaDerniereRangee(arrivee : Case) : boolean
   }
 
   class Coup {
@@ -96,6 +109,7 @@ package metier.jeu {
   enum Couleur <<enumeration>> {
     BLANC
     NOIR
+    + adverse() : Couleur
   }
 
   enum TypePromotion <<enumeration>> {
@@ -125,7 +139,7 @@ Piece <|-- Cavalier
 Piece <|-- Pion
 
 Plateau "1" *--> "                    64\n                    cases" Case
-Case "0..1                      " --> "\n\n0..1\npiece" Piece
+Case "0..1                      " --> "0..1\npiece" Piece
 Coup "0..*" --> "1\ndepart" Case
 Coup "0..*" --> "1\narrivee" Case
 Coup "0..*" -left-> "1 pieceJouee" Piece

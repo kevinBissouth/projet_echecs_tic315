@@ -11,6 +11,7 @@
 ' l'ordinateur passe aussi par jouerCoup (même vérification, même enregistrement).
 
 hide empty description
+skinparam ranksep 38
 
 state choixCreation <<choice>>
 

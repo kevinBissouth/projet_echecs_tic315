@@ -1,0 +1,84 @@
+@startuml classes-conception-etat
+' Diagramme de classes de conception — patron État du package metier.partie (jalon J4).
+' Séparé de classes-conception-partie.puml pour rester lisible une fois imprimé.
+' Une classe par état du diagramme d'états de la partie, une opération par événement ;
+' l'état par défaut refuse (TransitionInterditeException), chaque état concret ne
+' redéfinit que les événements qu'il accepte. Décisions justifiées dans docs/conception.pdf.
+
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam nodesep 25
+skinparam ranksep 90
+left to right direction
+
+package metier.partie {
+
+  abstract class Partie
+
+  abstract class EtatDePartie {
+    + {abstract} valeur() : EtatPartie
+    + rejoindre(partie : PartieEntreJoueurs, joueur : Joueur)
+    + refuserInvitation(partie : PartieEntreJoueurs, joueur : Joueur)
+    + annuler(partie : Partie, joueur : Joueur)
+    + annulerParLeSysteme(partie : Partie)
+    + jouerCoup(partie : Partie, joueur : Joueur [0..1], depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
+    + abandonner(partie : Partie, joueur : Joueur)
+    + proposerNulle(partie : PartieEntreJoueurs, joueur : Joueur)
+    + accepterNulle(partie : PartieEntreJoueurs, joueur : Joueur)
+    + refuserNulle(partie : PartieEntreJoueurs, joueur : Joueur)
+    + tempsEcoule(partie : PartieEntreJoueurs)
+    # refus(evenement : String) : TransitionInterditeException
+  }
+
+  class EtatEnAttente {
+    + valeur() : EtatPartie
+    + rejoindre(partie : PartieEntreJoueurs, joueur : Joueur)
+    + refuserInvitation(partie : PartieEntreJoueurs, joueur : Joueur)
+    + annuler(partie : Partie, joueur : Joueur)
+    + annulerParLeSysteme(partie : Partie)
+  }
+
+  class EtatEnCours {
+    + valeur() : EtatPartie
+    + annuler(partie : Partie, joueur : Joueur)
+    + annulerParLeSysteme(partie : Partie)
+    + jouerCoup(partie : Partie, joueur : Joueur [0..1], depart : Case, arrivee : Case, promotion : TypePromotion [0..1]) : Coup
+    + abandonner(partie : Partie, joueur : Joueur)
+    + proposerNulle(partie : PartieEntreJoueurs, joueur : Joueur)
+    + accepterNulle(partie : PartieEntreJoueurs, joueur : Joueur)
+    + refuserNulle(partie : PartieEntreJoueurs, joueur : Joueur)
+    + tempsEcoule(partie : PartieEntreJoueurs)
+  }
+
+  class EtatTerminee {
+    + valeur() : EtatPartie
+  }
+
+  class EtatAnnulee {
+    + valeur() : EtatPartie
+  }
+
+  class TransitionInterditeException {
+    + TransitionInterditeException(evenement : String, etat : EtatPartie)
+  }
+
+  enum EtatPartie <<enumeration>> {
+    EN_ATTENTE
+    EN_COURS
+    TERMINEE
+    ANNULEE
+  }
+}
+
+Partie "0..*" --> "1\netatCourant" EtatDePartie
+
+EtatDePartie <|-- EtatEnAttente
+EtatDePartie <|-- EtatEnCours
+EtatDePartie <|-- EtatTerminee
+EtatDePartie <|-- EtatAnnulee
+
+EtatDePartie ..> TransitionInterditeException : <<throws>>
+EtatDePartie ..> EtatPartie
+
+@enduml
