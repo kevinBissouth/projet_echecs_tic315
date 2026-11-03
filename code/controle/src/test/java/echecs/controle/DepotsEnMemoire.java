@@ -93,8 +93,7 @@ final class DepotsEnMemoire {
                     .findFirst();
         }
 
-        @Override
-        public synchronized List<Partie> partiesTermineesDe(Joueur joueur) {
+        synchronized List<Partie> partiesTermineesDe(Joueur joueur) {
             return parties.stream()
                     .filter(partie -> partie.etat() == EtatPartie.TERMINEE)
                     .filter(partie -> participe(partie, joueur))

@@ -18,6 +18,7 @@ import echecs.metier.partie.TransitionInterditeException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
 
@@ -155,6 +156,11 @@ public class ControleurPartie implements IPartie {
             }
             return partie.coups();
         });
+    }
+
+    /** @return the game this player last entered, finished or not */
+    public Optional<Partie> partieCourante() {
+        return Optional.ofNullable(partieCourante);
     }
 
     private void suivre(Partie partie) {

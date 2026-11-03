@@ -13,6 +13,4 @@ public interface DepotParties {
     List<PartieEntreJoueurs> partiesOuvertes();
 
     Optional<Partie> partieActiveDe(Joueur joueur);
-
-    List<Partie> partiesTermineesDe(Joueur joueur);
 }
