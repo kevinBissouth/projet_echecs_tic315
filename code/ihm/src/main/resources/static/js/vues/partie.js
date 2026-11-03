@@ -1,6 +1,6 @@
 import { html, afficher, ouvrirDialogue } from "../html.js";
 import { api, ErreurApi } from "../api.js";
-import { Echiquier, lirePosition, imagePiece } from "../echiquier.js";
+import { Echiquier, lirePosition, imagePiece, animationsPermises, DUREE_ANNONCE_MAT_MS } from "../echiquier.js";
 import { actualiserSession } from "../session.js";
 import { ecouter } from "../temps-reel.js";
 
@@ -48,6 +48,23 @@ const bandeJoueur = (classe, camp, partie) => html`
     </div>
     ${camp?.tempsMillisecondes !== null && camp?.tempsMillisecondes !== undefined && html`<div class="pendule" role="timer" data-pendule></div>`}
   </div>`;
+
+/** Le roque déplace aussi une tour : on la fait glisser, comme le roi. */
+function trajetDeLaTour({ arrivee }) {
+  const rangee = arrivee[1];
+  return arrivee[0] === "g" ? [`h${rangee}`, `f${rangee}`] : [`a${rangee}`, `d${rangee}`];
+}
+
+/** Ce que le dernier coup a produit : c'est ce que l'échiquier va montrer. */
+export function effetsDuCoup(coup, positionAvant, { caseEnEchec, mat }) {
+  const effets = {};
+  if (coup.notation.includes("x")) effets.prise = { case: coup.arrivee, piece: positionAvant[coup.arrivee] };
+  if (coup.notation.includes("=")) effets.promotion = coup.arrivee;
+  if (coup.notation.startsWith("O-O")) effets.roque = trajetDeLaTour(coup);
+  if (mat) effets.mat = caseEnEchec;
+  else if (caseEnEchec) effets.echec = caseEnEchec;
+  return effets;
+}
 
 function regrouperParCoup(coups) {
   const lignes = [];
@@ -204,7 +221,7 @@ function lancerPartie(contenu, premiere) {
         ${partie.etat === "EN_COURS" && html`<button class="bouton bouton-danger" type="button" data-action="abandonner">Abandonner</button>`}`}`);
   }
 
-  function dessiner(animer) {
+  function dessiner(animer, effets = {}) {
     afficher(bandeHaut, bandeJoueur("", partie.adversaire, partie));
     afficher(bandeBas, bandeJoueur("", partie.moi, partie));
     afficher(contenu.querySelector("#cadence"), html`${partie.contreOrdinateur ? "Sans pendule, non classée" : partie.cadence}`);
@@ -217,19 +234,26 @@ function lancerPartie(contenu, premiere) {
       caseEnEchec: partie.caseEnEchec,
       animer,
     });
+    echiquier.jouerEffets(effets);
     actualiserPendules();
     dessinerActions();
   }
 
   function recevoir(nouvelle) {
     const nouveauCoup = nouvelle.coups.length > partie.coups.length;
+    const mat = nouvelle.motif === "MAT";
+    const effets = nouveauCoup
+      ? effetsDuCoup(nouvelle.coups.at(-1), echiquier.position, { caseEnEchec: nouvelle.caseEnEchec, mat })
+      : {};
     partie = nouvelle;
     recu = performance.now();
     message = "";
-    dessiner(nouveauCoup);
+    dessiner(nouveauCoup, effets);
     const finie = partie.etat === "TERMINEE" || partie.etat === "ANNULEE";
     if (finie && etatPrecedent !== partie.etat) {
-      actualiserSession().finally(() => ouvrirBilan(partie));
+      // Le mat se voit d'abord sur l'échiquier ; le bilan vient ensuite.
+      const attente = mat && animationsPermises() ? DUREE_ANNONCE_MAT_MS : 0;
+      actualiserSession().finally(() => setTimeout(() => ouvrirBilan(partie), attente));
     }
     etatPrecedent = partie.etat;
   }

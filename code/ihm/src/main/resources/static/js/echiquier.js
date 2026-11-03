@@ -8,6 +8,15 @@ const RANGEES = [8, 7, 6, 5, 4, 3, 2, 1];
 const SEUIL_GLISSEMENT_PX = 6;
 const DUREE_ANIMATION_MS = 170;
 
+const DUREE_SECOUSSE_MS = 380;
+const DUREE_PROMOTION_MS = 650;
+const DUREE_CHUTE_MS = 900;
+const DELAI_CHUTE_MS = 250;
+/** Le temps que l'annonce du mat reste à l'écran, avant le bilan de la partie. */
+export const DUREE_ANNONCE_MAT_MS = 2600;
+const SECOUSSE = [{ translate: "0 0" }, { translate: "-7px 0" }, { translate: "6px 0" }, { translate: "-3px 0" }, { translate: "0 0" }];
+const APPARITION_PROMOTION = [{ scale: "0.2", filter: "brightness(3)" }, { scale: "1.18", filter: "brightness(1.6)" }, { scale: "1", filter: "none" }];
+
 const NOMS_PIECES = { k: "roi", q: "dame", r: "tour", b: "fou", n: "cavalier", p: "pion" };
 
 const estBlanche = (piece) => piece === piece.toUpperCase();
@@ -37,7 +46,7 @@ export function lirePosition(placement) {
   return position;
 }
 
-const animationsPermises = () => !matchMedia("(prefers-reduced-motion: reduce)").matches;
+export const animationsPermises = () => !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export class Echiquier {
   constructor(conteneur, { orientation = "blanc", destinations = () => [], surCoup = () => {}, decor = false } = {}) {
@@ -140,6 +149,58 @@ export class Echiquier {
     // « translate » plutôt que « transform » : mesuré dans le plan de l'échiquier, le trajet reste juste
     // même quand l'échiquier est incliné, et la pièce garde sa propre transformation.
     image.animate({ translate: [decalage, "0 0"] }, { duration: dureeDuTrajet, easing: "ease-out" });
+  }
+
+  /**
+   * Ce qui vient de se passer, montré sans gêner la lecture : une prise éclate, une promotion s'illumine,
+   * l'échec secoue l'échiquier, le mat renverse le roi.
+   */
+  jouerEffets({ prise, promotion, echec, mat, roque } = {}) {
+    if (!animationsPermises()) return;
+    if (roque) this.animer(roque[0], roque[1]);
+    if (prise) this.effetPrise(prise.case, prise.piece);
+    if (promotion) this.effetPromotion(promotion);
+    if (mat) this.effetMat(mat);
+    else if (echec) this.element.animate(SECOUSSE, { duration: DUREE_SECOUSSE_MS, easing: "ease-out" });
+  }
+
+  ajouterEffet(nomCase, classe, conteneur = this.cases.get(nomCase)) {
+    const effet = document.createElement("span");
+    effet.className = `effet ${classe}`;
+    effet.setAttribute("aria-hidden", "true");
+    effet.addEventListener("animationend", (evenement) => {
+      if (evenement.target === effet) effet.remove();
+    });
+    conteneur.append(effet);
+    return effet;
+  }
+
+  effetPrise(nomCase, piece) {
+    const eclat = this.ajouterEffet(nomCase, "effet-prise");
+    if (!piece) return;
+    const fantome = document.createElement("img");
+    fantome.src = imagePiece(piece);
+    fantome.alt = "";
+    fantome.className = "fantome";
+    eclat.append(fantome);
+  }
+
+  effetPromotion(nomCase) {
+    this.ajouterEffet(nomCase, "effet-promotion");
+    this.cases.get(nomCase).querySelector("img")?.animate(APPARITION_PROMOTION, { duration: DUREE_PROMOTION_MS, easing: "cubic-bezier(.2,.9,.3,1.3)" });
+  }
+
+  effetMat(caseDuRoi) {
+    const roi = caseDuRoi && this.cases.get(caseDuRoi).querySelector("img");
+    if (roi) {
+      roi.style.transformOrigin = "50% 88%";
+      roi.animate([{ rotate: "0deg" }, { rotate: "-84deg" }],
+        { duration: DUREE_CHUTE_MS, delay: DELAI_CHUTE_MS, easing: "cubic-bezier(.55,0,.8,.5)", fill: "forwards" });
+    }
+    const annonce = this.ajouterEffet(null, "effet-mat", this.element);
+    const texte = document.createElement("span");
+    texte.textContent = "Échec et mat";
+    annonce.append(texte);
   }
 
   selectionner(nom) {

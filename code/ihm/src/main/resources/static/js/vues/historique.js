@@ -4,6 +4,7 @@ import { Echiquier, lirePosition, miniature } from "../echiquier.js";
 import { icone, iconeFamille, libelleCadence } from "../icones.js";
 import { POSITION_INITIALE } from "../donnees.js";
 import { session } from "../session.js";
+import { effetsDuCoup } from "./partie.js";
 
 export const NOMS_FAMILLES = { BULLET: "Bullet", BLITZ: "Blitz", RAPIDE: "Rapide" };
 const FAMILLE_ORDINATEUR = "Ordinateur";
@@ -295,7 +296,12 @@ function dessinerRelecture(contenu, partie) {
   const aller = (cible, animer = false) => {
     courant = Math.min(Math.max(cible, 0), positions.length - 1);
     const coup = courant > 0 ? partie.coups[courant - 1] : null;
+    const avant = positions[courant - 1];
     echiquier.afficherPosition(positions[courant], { dernierCoup: coup && [coup.depart, coup.arrivee], animer });
+    if (animer && coup) {
+      const dernier = courant === positions.length - 1;
+      echiquier.jouerEffets(effetsDuCoup(coup, avant, { mat: dernier && partie.motif === "MAT", caseEnEchec: null }));
+    }
     elementCoups.querySelectorAll(".coup").forEach((bouton) => {
       const estCourant = Number(bouton.dataset.coup) === courant;
       bouton.classList.toggle("courant", estCourant);
