@@ -201,16 +201,16 @@ function lancerPartie(contenu, premiere) {
         <a class="bouton bouton-principal" href="#/salon">Nouvelle partie</a>`);
       return;
     }
-    const texte = message || (partie.nulleProposeeParAdversaire ? `${partie.adversaire.pseudo} propose la nulle. Jouer un coup la refuse.`
-      : partie.nulleProposeeParMoi ? `Nulle proposée. En attente de la réponse de ${partie.adversaire.pseudo}.`
+    const texte = message || (partie.nulleProposeeParAdversaire ? `${partie.adversaire.pseudo} propose le nulle. Jouer un coup le refuse.`
+      : partie.nulleProposeeParMoi ? `Nulle proposé. En attente de la réponse de ${partie.adversaire.pseudo}.`
       : partie.contreOrdinateur && partie.trait !== partie.maCouleur ? "L'ordinateur réfléchit."
       : "");
     afficher(elementActions, html`
       ${texte && html`<p class="message-partie" style="flex-basis:100%" role="status">${texte}</p>`}
       ${partie.nulleProposeeParAdversaire ? html`
-        <button class="bouton bouton-principal" type="button" data-action="accepter">Accepter la nulle</button>
+        <button class="bouton bouton-principal" type="button" data-action="accepter">Accepter le nulle</button>
         <button class="bouton" type="button" data-action="refuser">Refuser</button>` : html`
-        ${partie.etat === "EN_COURS" && !partie.contreOrdinateur && !partie.nulleProposeeParMoi && html`<button class="bouton" type="button" data-action="nulle">Proposer la nulle</button>`}
+        ${partie.etat === "EN_COURS" && !partie.contreOrdinateur && !partie.nulleProposeeParMoi && html`<button class="bouton" type="button" data-action="nulle">Proposer le nulle</button>`}
         ${partie.annulable && html`<button class="bouton" type="button" data-action="annuler">Annuler la partie</button>`}
         ${partie.etat === "EN_COURS" && html`<button class="bouton bouton-danger" type="button" data-action="abandonner">Abandonner</button>`}`}`);
   }
@@ -302,9 +302,9 @@ function lancerPartie(contenu, premiere) {
       }, () => agir(() => api.annuler()));
     } else if (action === "nulle") {
       demanderConfirmation({
-        titre: "Proposer la nulle ?",
+        titre: "Proposer le nulle ?",
         explication: `${partie.adversaire.pseudo} pourra accepter ou continuer la partie.`,
-        action: "Proposer la nulle",
+        action: "Proposer le nulle",
       }, () => agir(() => api.proposerNulle()));
     } else if (action === "accepter") {
       agir(() => api.repondreNulle(true));

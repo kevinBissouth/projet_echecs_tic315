@@ -54,15 +54,15 @@ public abstract class EtatDePartie {
     }
 
     public void proposerNulle(PartieEntreJoueurs partie, Joueur joueur) {
-        throw refus("proposer la nulle");
+        throw refus("proposer le nulle");
     }
 
     public void accepterNulle(PartieEntreJoueurs partie, Joueur joueur) {
-        throw refus("accepter la nulle");
+        throw refus("accepter le nulle");
     }
 
     public void refuserNulle(PartieEntreJoueurs partie, Joueur joueur) {
-        throw refus("refuser la nulle");
+        throw refus("refuser le nulle");
     }
 
     public void tempsEcoule(PartieEntreJoueurs partie) {

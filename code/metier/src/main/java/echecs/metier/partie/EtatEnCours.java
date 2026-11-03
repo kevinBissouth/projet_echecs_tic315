@@ -46,9 +46,9 @@ public class EtatEnCours extends EtatDePartie {
 
     @Override
     public void proposerNulle(PartieEntreJoueurs partie, Joueur joueur) {
-        Couleur couleur = partie.couleurDe(joueur).orElseThrow(() -> refus("proposer la nulle"));
+        Couleur couleur = partie.couleurDe(joueur).orElseThrow(() -> refus("proposer le nulle"));
         if (partie.nulleProposeePar().isPresent()) {
-            throw refus("proposer la nulle");
+            throw refus("proposer le nulle");
         }
         partie.enregistrerPropositionNulle(couleur);
     }
@@ -56,7 +56,7 @@ public class EtatEnCours extends EtatDePartie {
     @Override
     public void accepterNulle(PartieEntreJoueurs partie, Joueur joueur) {
         if (!partie.aRecuUneProposition(joueur)) {
-            throw refus("accepter la nulle");
+            throw refus("accepter le nulle");
         }
         partie.terminer(Resultat.NULLE, MotifFin.ACCORD);
     }
@@ -64,7 +64,7 @@ public class EtatEnCours extends EtatDePartie {
     @Override
     public void refuserNulle(PartieEntreJoueurs partie, Joueur joueur) {
         if (!partie.aRecuUneProposition(joueur)) {
-            throw refus("refuser la nulle");
+            throw refus("refuser le nulle");
         }
         partie.enregistrerPropositionNulle(null);
     }
