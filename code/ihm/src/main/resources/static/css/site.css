@@ -195,6 +195,9 @@ img { display: block; }
   transition: background-color .12s, border-color .12s;
 }
 .bouton:hover { background: var(--bleu-voile); border-color: var(--bleu); }
+/* Un bouton tient sur une ligne : un libellé trop long se coupe proprement au lieu de grossir le bouton. */
+.bouton { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bouton > svg { flex: none; }
 .bouton-principal { background: var(--bleu); border-color: var(--bleu); color: #fff; font-weight: 600; box-shadow: 0 0 22px -6px var(--bleu); }
 .bouton-principal:hover { background: var(--bleu-clair); border-color: var(--bleu-clair); }
 .bouton-danger { color: var(--rouge); border-color: color-mix(in srgb, var(--rouge) 45%, transparent); }
@@ -1023,6 +1026,86 @@ dialog .pied .bouton { flex: 1 1 8rem; }
 .entete-relecture p { font-size: .875rem; line-height: 1.3; }
 .navigation-coups { display: grid; grid-template-columns: repeat(4, 1fr); gap: .35rem; width: 100%; }
 .navigation-coups .bouton { padding-inline: .25rem; min-width: 0; }
+
+/* ---------- Effets du jeu ---------- */
+
+.case .effet { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.effet-prise { animation: duree-effet .6s linear forwards; }
+.effet-prise::before {
+  content: ""; position: absolute; inset: -12%;
+  border: 3px solid var(--rouge); border-radius: 50%;
+  box-shadow: 0 0 18px var(--rouge), inset 0 0 14px var(--rouge);
+  animation: onde-prise .55s ease-out forwards;
+}
+.fantome { position: absolute; inset: 0; width: 100%; height: 100%; animation: fantome .55s ease-in forwards; }
+.effet-promotion {
+  inset: -60% 0 0;
+  background: linear-gradient(to top, rgb(92 151 255 / .9), rgb(92 151 255 / .35) 55%, transparent);
+  transform-origin: 50% 100%;
+  animation: faisceau .9s ease-out forwards;
+}
+.case.echec::before { animation: pouls-echec 1.1s ease-in-out infinite; }
+.effet-mat {
+  position: absolute; inset: 0; z-index: 6;
+  display: grid; place-items: center; pointer-events: none;
+  background: radial-gradient(circle, rgb(255 7 58 / .42), rgb(0 0 0 / .35) 70%);
+  animation: mat-fond 2.6s ease forwards;
+}
+.effet-mat span {
+  font: 700 clamp(1.5rem, 10cqw, 3.25rem)/1 var(--logo);
+  color: #fff; text-align: center;
+  text-shadow: 0 0 .25em var(--rouge), 0 0 .8em var(--rouge);
+  animation: mat-texte 2.6s ease forwards;
+}
+@keyframes duree-effet { to { opacity: 1; } }
+@keyframes onde-prise { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
+@keyframes fantome { to { transform: scale(1.5) rotate(22deg); opacity: 0; filter: blur(2px); } }
+@keyframes faisceau { 0% { transform: scaleY(0); opacity: 1; } 45% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
+@keyframes pouls-echec { 50% { opacity: .5; } }
+@keyframes mat-fond { 0% { opacity: 0; } 12%, 82% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes mat-texte { 0% { transform: scale(1.8); opacity: 0; } 18% { transform: scale(1); opacity: 1; } 82% { opacity: 1; } 100% { transform: scale(.96); opacity: 0; } }
+
+/* ---------- Recherche d'un joueur ---------- */
+
+.suggestions {
+  margin: .25rem 0 0; padding: .25rem; list-style: none;
+  max-height: 14rem; overflow-y: auto;
+  background: var(--fond); border: 1px solid var(--filet-fort); border-radius: 8px;
+}
+.suggestions[hidden] { display: none; }
+.suggestions [role="option"] {
+  display: flex; align-items: center; gap: .6rem;
+  min-height: 2.75rem; padding: .3rem .6rem; border-radius: 6px; cursor: pointer;
+}
+.suggestions [role="option"]:hover, .suggestions [aria-selected="true"] { background: var(--bleu-voile); }
+.suggestions .avatar { width: 1.75rem; height: 1.75rem; font-size: .875rem; }
+.suggestions mark { background: none; color: var(--bleu-clair); font-weight: 700; }
+.suggestion-vide { padding: .6rem; color: var(--encre-douce); font-size: .9375rem; }
+
+/* ---------- Téléphone : des textes plus mesurés, des boutons tous de la même hauteur ---------- */
+
+@media (max-width: 40rem) {
+  html { font-size: 93.75%; }
+  /* 16 px exactement dans les champs : en dessous, l'iPhone agrandit la page à chaque saisie. */
+  .champ input, .recherche input, .reglage-elo input { font-size: 16px; }
+  .bouton, .bouton-petit, .bouton-large, .bouton-grand,
+  .accueil .accueil-actions .bouton, .accueil-actions .bouton {
+    min-height: 2.875rem; padding: .3rem .85rem; font-size: .9375rem;
+  }
+  .page > h1 { font-size: 1.75rem; }
+  .page > .titre-page { font-size: 1.5rem; }
+  .section-tete h2 { font-size: 1.125rem; }
+  .auth-carte h1 { font-size: 1.75rem; }
+  .accueil .accroche { font-size: 1.25rem; }
+  .pendule { min-width: 5.25rem; font-size: 1.375rem; }
+  .mini-classements strong { font-size: 1.375rem; }
+  .profil-nom strong { font-size: 1.25rem; }
+  .chiffre-fort, .tableau-classements td.chiffre-fort { font-size: 1.625rem; }
+  .rangee-choix { min-height: 2.875rem; font-size: .9375rem; }
+  .onglets-panneau button { min-height: 2.75rem; font-size: .9375rem; }
+  dialog h2, .feuille-compte h2 { font-size: 1.375rem; }
+  .bilan strong { font-size: 1.5rem; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
