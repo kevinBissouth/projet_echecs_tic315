@@ -31,6 +31,14 @@ public class Participation {
         return Optional.ofNullable(tempsRestant);
     }
 
+    /** What the clock shows now: while this player thinks, the time since the start of their turn is deducted. */
+    public Optional<Duration> tempsRestantA(Instant maintenant) {
+        if (tempsRestant == null || debutTour == null) {
+            return tempsRestant();
+        }
+        return Optional.of(tempsRestant.minus(Duration.between(debutTour, maintenant)));
+    }
+
     public void definirCouleur(Couleur nouvelleCouleur) {
         couleur = nouvelleCouleur;
     }

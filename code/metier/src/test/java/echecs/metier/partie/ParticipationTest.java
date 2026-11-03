@@ -39,4 +39,15 @@ class ParticipationTest {
 
         assertEquals(Optional.of(Duration.ofSeconds(42)), participation.tempsRestant());
     }
+
+    @Test
+    void laPenduleEnMarcheDeduitLeTempsDuTour() {
+        Participation participation = new Participation(new Joueur("alice", "alice@exemple.com"), null, java.time.Duration.ofMinutes(5));
+        java.time.Instant debut = java.time.Instant.EPOCH;
+
+        participation.demarrerPendule(debut);
+
+        org.junit.jupiter.api.Assertions.assertEquals(java.time.Duration.ofMinutes(4),
+                participation.tempsRestantA(debut.plus(java.time.Duration.ofMinutes(1))).orElseThrow());
+    }
 }

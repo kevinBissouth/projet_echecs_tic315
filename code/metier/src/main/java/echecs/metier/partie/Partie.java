@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public abstract class Partie {
     private static final int OCCURRENCES_REPETITION = 3;
@@ -21,6 +22,7 @@ public abstract class Partie {
     private static final int DEMI_COUPS_REGLE_DES_CINQUANTE = 100;
     private static final int DEMI_COUPS_PAR_COUP = 2;
 
+    private final UUID id = UUID.randomUUID();
     private final Clock horloge;
     private final Plateau plateau = new Plateau();
     private final String positionInitiale = plateau.position(Couleur.BLANC);
@@ -35,6 +37,10 @@ public abstract class Partie {
 
     protected Partie(Clock horloge) {
         this.horloge = horloge;
+    }
+
+    public UUID id() {
+        return id;
     }
 
     public EtatPartie etat() {
