@@ -6,3 +6,10 @@ __pycache__/
 
 # Maven
 target/
+
+# Secrets: database and identity provider credentials
+.env
+.env.*
+
+# Neon project link
+.neon
