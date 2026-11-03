@@ -1,12 +1,12 @@
 import { html, afficher, ouvrirDialogue } from "../html.js";
 import { api, ErreurApi } from "../api.js";
-import { Echiquier, lirePosition, imagePiece, animationsPermises, DUREE_ANNONCE_MAT_MS } from "../echiquier.js";
+import { Echiquier, lirePosition, imagePiece, animationsPermises, DUREE_ANNONCE_MS } from "../echiquier.js";
 import { actualiserSession } from "../session.js";
 import { ecouter } from "../temps-reel.js";
+import { formaterTemps } from "../duree.js";
 
-const MILLISECONDES_PAR_SECONDE = 1000;
-const SECONDES_PAR_MINUTE = 60;
-const SEUIL_TEMPS_BAS_MS = 20 * MILLISECONDES_PAR_SECONDE;
+// La pendule passe au rouge dès qu'elle affiche 0:59.
+const SEUIL_TEMPS_BAS_MS = 59 * 1000;
 const INTERVALLE_PENDULE_MS = 200;
 const RANGEE_DE_PROMOTION = { BLANC: "8", NOIR: "1" };
 const PROMOTIONS = [
@@ -26,12 +26,6 @@ const MOTIFS = {
   MATERIEL_INSUFFISANT: "Nulle : matériel insuffisant pour mater.",
 };
 const TITRES = { gagnee: "Vous avez gagné", perdue: "Vous avez perdu", nulle: "Partie nulle", annulee: "Partie annulée" };
-
-function formaterTemps(millisecondes) {
-  const secondes = Math.ceil(Math.max(millisecondes, 0) / MILLISECONDES_PAR_SECONDE);
-  const minutes = Math.floor(secondes / SECONDES_PAR_MINUTE);
-  return `${minutes}:${String(secondes % SECONDES_PAR_MINUTE).padStart(2, "0")}`;
-}
 
 const nomDe = (camp) => camp?.pseudo ?? "En attente d'un adversaire";
 
@@ -193,9 +187,10 @@ function lancerPartie(contenu, premiere) {
       const pendule = bande.querySelector("[data-pendule]");
       if (!pendule || !camp) continue;
       const reste = camp.tempsMillisecondes - (camp.penduleActive ? ecoule : 0);
+      const basse = reste <= SEUIL_TEMPS_BAS_MS;
       pendule.textContent = formaterTemps(reste);
-      pendule.classList.toggle("active", camp.penduleActive && reste > SEUIL_TEMPS_BAS_MS);
-      pendule.classList.toggle("basse", camp.penduleActive && reste <= SEUIL_TEMPS_BAS_MS);
+      pendule.classList.toggle("active", camp.penduleActive && !basse);
+      pendule.classList.toggle("basse", basse);
     }
   };
 
@@ -206,8 +201,7 @@ function lancerPartie(contenu, premiere) {
         <a class="bouton bouton-principal" href="#/salon">Nouvelle partie</a>`);
       return;
     }
-    const texte = message || (partie.etat === "EN_ATTENTE" ? "Votre partie attend un adversaire. Elle commencera dès qu'un joueur la rejoindra."
-      : partie.nulleProposeeParAdversaire ? `${partie.adversaire.pseudo} propose la nulle. Jouer un coup la refuse.`
+    const texte = message || (partie.nulleProposeeParAdversaire ? `${partie.adversaire.pseudo} propose la nulle. Jouer un coup la refuse.`
       : partie.nulleProposeeParMoi ? `Nulle proposée. En attente de la réponse de ${partie.adversaire.pseudo}.`
       : partie.contreOrdinateur && partie.trait !== partie.maCouleur ? "L'ordinateur réfléchit."
       : "");
@@ -242,20 +236,30 @@ function lancerPartie(contenu, premiere) {
   function recevoir(nouvelle) {
     const nouveauCoup = nouvelle.coups.length > partie.coups.length;
     const mat = nouvelle.motif === "MAT";
+    const tempsEcoule = nouvelle.motif === "TEMPS_ECOULE" && etatPrecedent !== nouvelle.etat;
     const effets = nouveauCoup
       ? effetsDuCoup(nouvelle.coups.at(-1), echiquier.position, { caseEnEchec: nouvelle.caseEnEchec, mat })
       : {};
+    if (tempsEcoule) effets.tempsEcoule = true;
     partie = nouvelle;
     recu = performance.now();
     message = "";
     dessiner(nouveauCoup, effets);
+    if (tempsEcoule) marquerLaPenduleTombee();
     const finie = partie.etat === "TERMINEE" || partie.etat === "ANNULEE";
     if (finie && etatPrecedent !== partie.etat) {
-      // Le mat se voit d'abord sur l'échiquier ; le bilan vient ensuite.
-      const attente = mat && animationsPermises() ? DUREE_ANNONCE_MAT_MS : 0;
+      // Le mat ou la pendule tombée se voient d'abord sur l'échiquier ; le bilan vient ensuite.
+      const attente = (mat || tempsEcoule) && animationsPermises() ? DUREE_ANNONCE_MS : 0;
       actualiserSession().finally(() => setTimeout(() => ouvrirBilan(partie), attente));
     }
     etatPrecedent = partie.etat;
+  }
+
+  /** La pendule à zéro tremble : on voit tout de suite quel camp a perdu au temps. */
+  function marquerLaPenduleTombee() {
+    for (const [bande, camp] of [[bandeHaut, partie.adversaire], [bandeBas, partie.moi]]) {
+      if (camp?.tempsMillisecondes === 0) bande.querySelector("[data-pendule]")?.classList.add("tombee");
+    }
   }
 
   /** Un refus du serveur se lit dans le panneau ; l'échiquier reprend la position qu'il connaît. */

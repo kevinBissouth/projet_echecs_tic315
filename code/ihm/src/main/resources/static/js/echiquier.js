@@ -12,8 +12,8 @@ const DUREE_SECOUSSE_MS = 380;
 const DUREE_PROMOTION_MS = 650;
 const DUREE_CHUTE_MS = 900;
 const DELAI_CHUTE_MS = 250;
-/** Le temps que l'annonce du mat reste à l'écran, avant le bilan de la partie. */
-export const DUREE_ANNONCE_MAT_MS = 2600;
+/** Le temps qu'une annonce de fin (mat, temps écoulé) reste à l'écran, avant le bilan de la partie. */
+export const DUREE_ANNONCE_MS = 2600;
 const SECOUSSE = [{ translate: "0 0" }, { translate: "-7px 0" }, { translate: "6px 0" }, { translate: "-3px 0" }, { translate: "0 0" }];
 const APPARITION_PROMOTION = [{ scale: "0.2", filter: "brightness(3)" }, { scale: "1.18", filter: "brightness(1.6)" }, { scale: "1", filter: "none" }];
 
@@ -155,11 +155,12 @@ export class Echiquier {
    * Ce qui vient de se passer, montré sans gêner la lecture : une prise éclate, une promotion s'illumine,
    * l'échec secoue l'échiquier, le mat renverse le roi.
    */
-  jouerEffets({ prise, promotion, echec, mat, roque } = {}) {
+  jouerEffets({ prise, promotion, echec, mat, roque, tempsEcoule } = {}) {
     if (!animationsPermises()) return;
     if (roque) this.animer(roque[0], roque[1]);
     if (prise) this.effetPrise(prise.case, prise.piece);
     if (promotion) this.effetPromotion(promotion);
+    if (tempsEcoule) this.annoncer("Temps écoulé", "effet-temps");
     if (mat) this.effetMat(mat);
     else if (echec) this.element.animate(SECOUSSE, { duration: DUREE_SECOUSSE_MS, easing: "ease-out" });
   }
@@ -168,8 +169,9 @@ export class Echiquier {
     const effet = document.createElement("span");
     effet.className = `effet ${classe}`;
     effet.setAttribute("aria-hidden", "true");
+    // Seule la fin de sa propre animation le retire : celles de ses enfants et de ses ::before remontent jusqu'ici.
     effet.addEventListener("animationend", (evenement) => {
-      if (evenement.target === effet) effet.remove();
+      if (evenement.target === effet && !evenement.pseudoElement) effet.remove();
     });
     conteneur.append(effet);
     return effet;
@@ -197,10 +199,14 @@ export class Echiquier {
       roi.animate([{ rotate: "0deg" }, { rotate: "-84deg" }],
         { duration: DUREE_CHUTE_MS, delay: DELAI_CHUTE_MS, easing: "cubic-bezier(.55,0,.8,.5)", fill: "forwards" });
     }
-    const annonce = this.ajouterEffet(null, "effet-mat", this.element);
-    const texte = document.createElement("span");
-    texte.textContent = "Échec et mat";
-    annonce.append(texte);
+    this.annoncer("Échec et mat");
+  }
+
+  annoncer(texte, variante = "") {
+    const annonce = this.ajouterEffet(null, `effet-annonce ${variante}`, this.element);
+    const libelle = document.createElement("span");
+    libelle.textContent = texte;
+    annonce.append(libelle);
   }
 
   selectionner(nom) {
