@@ -59,6 +59,14 @@ final class DepotsEnMemoire {
         }
 
         @Override
+        public List<Joueur> pseudosCommencantPar(String debut, int nombre) {
+            return joueurs.stream()
+                    .filter(joueur -> joueur.pseudo().toLowerCase().startsWith(debut.toLowerCase()))
+                    .limit(nombre)
+                    .toList();
+        }
+
+        @Override
         public List<Joueur> tous() {
             return List.copyOf(joueurs);
         }

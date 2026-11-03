@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import echecs.metier.jeu.Couleur;
 import echecs.metier.jeu.MotifFin;
-import echecs.metier.joueur.CalculElo;
+import echecs.metier.joueur.CalculAPointsFixes;
 import echecs.metier.joueur.CategorieCadence;
 import echecs.metier.joueur.Classement;
 import echecs.metier.joueur.EtatCompte;
@@ -52,7 +52,7 @@ class ControleurCompteTest {
     private final Joueur administrateur = Joueur.administrateur("admin", "admin@exemple.com");
 
     private ControleurPartie controleurPartie(Joueur joueur) {
-        return new ControleurPartie(joueur, partie -> { }, new FauxMoteur(), new CalculElo(), depotParties, depotJoueurs,
+        return new ControleurPartie(joueur, partie -> { }, new FauxMoteur(), new CalculAPointsFixes(), depotParties, depotJoueurs,
                 files, Runnable::run, Clock.systemUTC());
     }
 
@@ -284,5 +284,26 @@ class ControleurCompteTest {
         controleur.reactiver(administrateur, alice);
 
         assertEquals(avant + 2, depotJoueurs.enregistrements);
+    }
+
+    @Test
+    void laRechercheProposeLesJoueursQuOnPeutInviter() {
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
+        Joueur alain = controleur.creerCompte("Alain", "alain@exemple.com", MOT_DE_PASSE);
+        Joueur albert = controleur.creerCompte("albert", "albert@exemple.com", MOT_DE_PASSE);
+        controleur.creerCompte("bob", "bob@exemple.com", MOT_DE_PASSE);
+        controleur.creerAdministrateurInitial("albane", "albane@exemple.com");
+        controleur.suspendre(depotJoueurs.trouverParPseudo("albane").orElseThrow(), albert);
+
+        assertEquals(List.of(alain), controleur.rechercherAdversaires(alice, "AL"));
+    }
+
+    @Test
+    void uneRechercheVideOuInvalideNeRenvoieRien() {
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
+
+        assertEquals(List.of(), controleur.rechercherAdversaires(alice, ""));
+        assertEquals(List.of(), controleur.rechercherAdversaires(alice, "%"));
+        assertEquals(List.of(), controleur.rechercherAdversaires(alice, null));
     }
 }

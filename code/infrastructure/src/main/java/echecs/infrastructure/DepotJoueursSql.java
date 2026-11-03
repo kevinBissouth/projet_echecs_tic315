@@ -84,6 +84,17 @@ public class DepotJoueursSql implements DepotJoueurs {
         return trouverParPseudo(pseudo).isPresent();
     }
 
+    /** The typed letters are matched literally: an underscore in a pseudo must not act as a wildcard. */
+    @Override
+    public List<Joueur> pseudosCommencantPar(String debut, int nombre) {
+        String motif = debut.toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        List<String> pseudos = base.sql("select pseudo from joueurs where lower(pseudo) like ? escape '\\' order by lower(pseudo) limit ?")
+                .params(motif, nombre)
+                .query(String.class)
+                .list();
+        return pseudos.stream().map(this::trouverParPseudo).flatMap(Optional::stream).toList();
+    }
+
     @Override
     public List<Joueur> tous() {
         return lire(LECTURE + " order by j.pseudo");

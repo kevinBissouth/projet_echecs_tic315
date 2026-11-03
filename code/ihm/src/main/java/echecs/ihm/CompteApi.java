@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.security.Principal;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -58,6 +60,15 @@ class CompteApi {
         VueJoueur joueur = connecte == null ? null : joueurs.trouverParPseudo(connecte.getName()).map(this::vue).orElse(null);
         VueIdentite enAttente = identite == null ? null : new VueIdentite(identite.nom(), identite.email());
         return new VueSession(joueur, enAttente, googleDisponible);
+    }
+
+    record Suggestion(String pseudo) { }
+
+    @GetMapping("/api/joueurs")
+    List<Suggestion> rechercher(@RequestParam(defaultValue = "") String debut, Principal connecte) {
+        Joueur appelant = joueurs.trouverParPseudo(connecte.getName())
+                .orElseThrow(() -> new ConnexionRefuseeException("Ce compte n'existe plus"));
+        return comptes.rechercherAdversaires(appelant, debut).stream().map(joueur -> new Suggestion(joueur.pseudo())).toList();
     }
 
     @PostMapping("/api/inscription")

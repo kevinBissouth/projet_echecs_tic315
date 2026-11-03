@@ -23,4 +23,7 @@ public interface DepotJoueurs {
     boolean pseudoExiste(String pseudo);
 
     List<Joueur> tous();
+
+    /** @return at most {@code nombre} players whose pseudo starts with {@code debut}, ignoring case */
+    List<Joueur> pseudosCommencantPar(String debut, int nombre);
 }

@@ -228,4 +228,37 @@ class PartieApiTest {
         assertEquals(403, joueur.lire("/api/admin/comptes").statusCode());
         assertEquals(403, joueur.envoyer("/api/admin/comptes/" + joueur.pseudo + "/suspension", "{}").statusCode());
     }
+
+    @Test
+    void leGrandRoqueEstProposeEtDeplaceLaTour_RG2() throws Exception {
+        Joueur[] joueurs = partieCommencee();
+        Joueur blancs = joueurs[0];
+        Joueur noirs = joueurs[1];
+        String[][] coups = {{"d2", "d4"}, {"a7", "a6"}, {"c1", "f4"}, {"a6", "a5"}, {"b1", "c3"}, {"h7", "h6"}, {"d1", "d2"}, {"h6", "h5"}};
+        for (int indice = 0; indice < coups.length; indice++) {
+            assertEquals(200, (indice % 2 == 0 ? blancs : noirs).jouer(coups[indice][0], coups[indice][1]).statusCode());
+        }
+
+        String destinationsDuRoi = blancs.partie().get("destinations").get("e1").toString();
+        assertTrue(destinationsDuRoi.contains("c1"), destinationsDuRoi);
+
+        assertEquals(200, blancs.jouer("e1", "c1").statusCode());
+        JsonNode apres = blancs.partie();
+        assertEquals("O-O-O", apres.get("coups").get(8).get("notation").asString());
+        assertTrue(apres.get("position").asString().startsWith("rnbqkbnr/1pppppp1/8/p6p/3P1B2/2N5/PPPQPPPP/2KR1BNR"), apres.get("position").asString());
+    }
+
+    @Test
+    void laRechercheProposeDesJoueursSansSeProposerSoiMeme() throws Exception {
+        Joueur cherche = new Joueur("zoe");
+        Joueur moi = new Joueur("zoltan");
+
+        JsonNode suggestions = JSON.readTree(moi.lire("/api/joueurs?debut=ZO").body());
+
+        assertTrue(suggestions.toString().contains(cherche.pseudo));
+        assertFalse(suggestions.toString().contains(moi.pseudo));
+        assertEquals("[]", moi.lire("/api/joueurs?debut=").body());
+        assertEquals(401, HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/joueurs?debut=zo")).build(),
+                HttpResponse.BodyHandlers.ofString()).statusCode());
+    }
 }

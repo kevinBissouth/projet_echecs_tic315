@@ -26,6 +26,9 @@ public interface ICompte {
 
     Map<CategorieCadence, Classement> consulterClassements(Joueur joueur);
 
+    /** The players this one could invite, as they type the first letters of a pseudo. */
+    List<Joueur> rechercherAdversaires(Joueur appelant, String debut);
+
     /** @throws AccesRefuseException if the caller is not an administrator */
     List<Joueur> consulterComptes(Joueur appelant);
 

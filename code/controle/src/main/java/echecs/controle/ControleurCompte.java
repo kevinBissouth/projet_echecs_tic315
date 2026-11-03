@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import echecs.metier.joueur.CategorieCadence;
 import echecs.metier.joueur.Classement;
+import echecs.metier.joueur.EtatCompte;
 import echecs.metier.joueur.Joueur;
 import echecs.metier.partie.EtatPartie;
 import echecs.metier.partie.Partie;
@@ -17,6 +18,10 @@ import java.util.Map;
 public class ControleurCompte implements ICompte {
     private static final Pattern PSEUDO_VALIDE = Pattern.compile("[A-Za-z0-9_.-]{3,20}");
     private static final Pattern EMAIL_VALIDE = Pattern.compile("[^\\s@]+@[^\\s@]+\\.[^\\s@]+");
+    private static final Pattern DEBUT_DE_PSEUDO = Pattern.compile("[A-Za-z0-9_.-]{1,20}");
+    private static final int SUGGESTIONS_MAXIMUM = 8;
+    // A few more are asked for: some of them are filtered out afterwards.
+    private static final int SUGGESTIONS_DEMANDEES = 20;
     private static final int LONGUEUR_MINIMALE_MOT_DE_PASSE = 8;
     // BCrypt ignores what comes after 72 bytes: a longer password would only seem stronger.
     private static final int OCTETS_MAXIMUM_MOT_DE_PASSE = 72;
@@ -74,6 +79,19 @@ public class ControleurCompte implements ICompte {
     @Override
     public Optional<Joueur> seConnecterAvecIdentite(String jeton) {
         return depotJoueurs.trouverParEmail(normaliser(authentification.verifierIdentite(jeton)));
+    }
+
+    /** Neither oneself, nor an administrator, nor a suspended account: only players who can be invited. */
+    @Override
+    public List<Joueur> rechercherAdversaires(Joueur appelant, String debut) {
+        if (debut == null || !DEBUT_DE_PSEUDO.matcher(debut.trim()).matches()) {
+            return List.of();
+        }
+        return depotJoueurs.pseudosCommencantPar(debut.trim(), SUGGESTIONS_DEMANDEES).stream()
+                .filter(joueur -> !joueur.equals(appelant))
+                .filter(joueur -> !joueur.estAdministrateur() && joueur.etat() == EtatCompte.ACTIF)
+                .limit(SUGGESTIONS_MAXIMUM)
+                .toList();
     }
 
     @Override
