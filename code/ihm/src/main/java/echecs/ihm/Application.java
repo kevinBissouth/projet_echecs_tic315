@@ -1,6 +1,8 @@
 package echecs.ihm;
 
+import echecs.controle.ArchivesParties;
 import echecs.controle.ControleurCompte;
+import echecs.controle.ControleurHistorique;
 import echecs.controle.ConnexionRefuseeException;
 import echecs.controle.DepotJoueurs;
 import echecs.controle.DepotParties;
@@ -11,10 +13,14 @@ import echecs.controle.ServiceMotsDePasse;
 import echecs.infrastructure.AdaptateurOpenIdConnect;
 import echecs.infrastructure.AdaptateurStockfish;
 import echecs.infrastructure.DepotJoueursSql;
-import echecs.infrastructure.DepotPartiesEnMemoire;
+import echecs.infrastructure.DepotPartiesSql;
 import echecs.infrastructure.MotsDePasseBcrypt;
+import echecs.metier.joueur.CalculClassement;
+import echecs.metier.joueur.CalculElo;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -27,12 +33,15 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** Plugs the pieces together: only this class knows which adapter serves which interface. */
 @SpringBootApplication
+@EnableScheduling
 public class Application {
-    private static final Duration TEMPS_DE_REFLEXION = Duration.ofSeconds(1);
+    private static final Duration TEMPS_DE_REFLEXION = Duration.ofMillis(500);
+    private static final int MOTEURS_SIMULTANES = 2;
     private static final Duration DELAI_DE_REPONSE = Duration.ofSeconds(15);
     private static final String CLES_GOOGLE = "https://www.googleapis.com/oauth2/v3/certs";
     private static final String EMETTEUR_GOOGLE = "https://accounts.google.com";
@@ -56,9 +65,26 @@ public class Application {
         return new DepotJoueursSql(base, transaction);
     }
 
+    /** One object for both roles: games in memory until they end, and the archives they end in. */
     @Bean
-    DepotParties depotParties() {
-        return new DepotPartiesEnMemoire();
+    DepotPartiesSql depotParties(JdbcClient base, TransactionTemplate transaction) {
+        return new DepotPartiesSql(base, transaction);
+    }
+
+    @Bean
+    ControleurHistorique controleurHistorique(ArchivesParties archives) {
+        return new ControleurHistorique(archives);
+    }
+
+    @Bean
+    CalculClassement calculClassement() {
+        return new CalculElo();
+    }
+
+    /** Two engines at most at once: each one is a process, and the server is small. */
+    @Bean(destroyMethod = "shutdownNow")
+    ExecutorService calculsDuMoteur() {
+        return Executors.newFixedThreadPool(MOTEURS_SIMULTANES, Thread.ofVirtual().factory());
     }
 
     @Bean

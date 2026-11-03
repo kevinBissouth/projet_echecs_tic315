@@ -25,7 +25,7 @@ public class ConfigurationSecurite {
                                 ConnexionGoogle connexionGoogle) throws Exception {
         http.authorizeHttpRequests(regles -> regles
                         .requestMatchers("/api/inscription", "/api/connexion", "/api/moi", "/api/google/**").permitAll()
-                        .requestMatchers("/api/**").authenticated()
+                        .requestMatchers("/api/**", "/ws/**").authenticated()
                         .anyRequest().permitAll())
                 // The browser sends the session cookie by itself: this token proves the request comes from our pages.
                 .csrf(csrf -> csrf.spa())

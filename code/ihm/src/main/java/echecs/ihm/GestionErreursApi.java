@@ -1,8 +1,11 @@
 package echecs.ihm;
 
 import echecs.controle.AccesRefuseException;
+import echecs.controle.ActionRefuseeException;
 import echecs.controle.CompteRefuseException;
 import echecs.controle.ConnexionRefuseeException;
+import echecs.metier.partie.CoupRefuseException;
+import echecs.metier.partie.TransitionInterditeException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +28,12 @@ class GestionErreursApi {
     @ExceptionHandler(AccesRefuseException.class)
     ResponseEntity<Map<String, String>> accesRefuse(AccesRefuseException erreur) {
         return reponse(HttpStatus.FORBIDDEN, erreur);
+    }
+
+    /** The action is refused by the rules of the game: not a server error, and the player can be told why. */
+    @ExceptionHandler({ActionRefuseeException.class, CoupRefuseException.class, TransitionInterditeException.class})
+    ResponseEntity<Map<String, String>> actionRefusee(RuntimeException erreur) {
+        return reponse(HttpStatus.CONFLICT, erreur);
     }
 
     @ExceptionHandler(TropDeTentativesException.class)
