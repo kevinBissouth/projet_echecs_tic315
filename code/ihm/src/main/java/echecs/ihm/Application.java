@@ -47,7 +47,20 @@ public class Application {
     private static final String EMETTEUR_GOOGLE = "https://accounts.google.com";
 
     public static void main(String[] args) {
+        adopterLesAdressesDeNeon();
         SpringApplication.run(Application.class, args);
+    }
+
+    /** The host keeps the addresses exactly as Neon gives them: nobody has to rewrite a password by hand. */
+    private static void adopterLesAdressesDeNeon() {
+        String partagee = System.getenv("DATABASE_URL");
+        String directe = System.getenv("DATABASE_URL_UNPOOLED");
+        if (partagee != null && !partagee.isBlank()) {
+            System.setProperty("JDBC_DATABASE_URL", AdresseDeBase.versJdbc(partagee));
+        }
+        if (directe != null && !directe.isBlank()) {
+            System.setProperty("JDBC_DATABASE_URL_DIRECTE", AdresseDeBase.versJdbc(directe));
+        }
     }
 
     @Bean
