@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import echecs.metier.jeu.Coup;
 import echecs.metier.jeu.Couleur;
 import echecs.metier.jeu.MotifFin;
-import echecs.metier.joueur.CalculElo;
+import echecs.metier.joueur.CalculAPointsFixes;
 import echecs.metier.joueur.CategorieCadence;
 import echecs.metier.joueur.Classement;
 import echecs.metier.joueur.Joueur;
@@ -42,7 +42,7 @@ class PartieEntreJoueursTest {
     private final Joueur carla = new Joueur("carla", "carla@exemple.com");
 
     private PartieEntreJoueurs partieOuverte() {
-        return new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, null, new CalculElo(), horloge);
+        return new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, null, new CalculAPointsFixes(), horloge);
     }
 
     private PartieEntreJoueurs partieEnCours() {
@@ -88,7 +88,7 @@ class PartieEntreJoueursTest {
 
     @Test
     void uneCouleurAuHasardDonneDeuxCouleursDifferentes() {
-        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, RAPIDE, null, null, new CalculElo(), horloge);
+        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, RAPIDE, null, null, new CalculAPointsFixes(), horloge);
 
         partie.rejoindre(bob);
 
@@ -113,7 +113,7 @@ class PartieEntreJoueursTest {
 
     @Test
     void seulLInvitePeutRejoindreUnePartieSurInvitation_RG13() {
-        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, bob, new CalculElo(), horloge);
+        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, bob, new CalculAPointsFixes(), horloge);
 
         assertThrows(TransitionInterditeException.class, () -> partie.rejoindre(carla));
         partie.rejoindre(bob);
@@ -123,12 +123,12 @@ class PartieEntreJoueursTest {
     @Test
     void onNePeutPasSInviterSoiMeme() {
         assertThrows(IllegalArgumentException.class,
-                () -> new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, alice, new CalculElo(), horloge));
+                () -> new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, alice, new CalculAPointsFixes(), horloge));
     }
 
     @Test
     void refuserLInvitationAnnuleLaPartieEtLibereLeCreateur_RG13() {
-        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, bob, new CalculElo(), horloge);
+        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, bob, new CalculAPointsFixes(), horloge);
 
         partie.refuserInvitation(bob);
 
@@ -138,7 +138,7 @@ class PartieEntreJoueursTest {
 
     @Test
     void seulLInvitePeutRefuserLInvitation_RG13() {
-        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, bob, new CalculElo(), horloge);
+        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, RAPIDE, Couleur.BLANC, bob, new CalculAPointsFixes(), horloge);
 
         assertThrows(TransitionInterditeException.class, () -> partie.refuserInvitation(carla));
     }
@@ -295,8 +295,8 @@ class PartieEntreJoueursTest {
 
         matDuBerger(partie, alice, bob);
 
-        assertEquals(1510, alice.classement(CategorieCadence.RAPIDE).points());
-        assertEquals(1490, bob.classement(CategorieCadence.RAPIDE).points());
+        assertEquals(408, alice.classement(CategorieCadence.RAPIDE).points());
+        assertEquals(392, bob.classement(CategorieCadence.RAPIDE).points());
         assertEquals(Classement.POINTS_INITIAUX, alice.classement(CategorieCadence.BLITZ).points());
         assertEquals(Classement.POINTS_INITIAUX, bob.classement(CategorieCadence.BULLET).points());
     }
@@ -309,7 +309,7 @@ class PartieEntreJoueursTest {
 
         assertEquals(Optional.of(Resultat.VICTOIRE_NOIRS), partie.resultat());
         assertEquals(Optional.of(MotifFin.ABANDON), partie.motifFin());
-        assertEquals(1490, alice.classement(CategorieCadence.RAPIDE).points());
+        assertEquals(392, alice.classement(CategorieCadence.RAPIDE).points());
     }
 
     @Test

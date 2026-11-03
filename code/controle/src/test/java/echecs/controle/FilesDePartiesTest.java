@@ -6,8 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import echecs.metier.jeu.Couleur;
 import echecs.metier.jeu.MotifFin;
-import echecs.metier.joueur.CalculElo;
+import echecs.metier.joueur.CalculAPointsFixes;
 import echecs.metier.joueur.CategorieCadence;
+import echecs.metier.joueur.Classement;
 import echecs.metier.joueur.Joueur;
 import echecs.metier.partie.Cadence;
 import echecs.metier.partie.CoupRefuseException;
@@ -37,7 +38,7 @@ class FilesDePartiesTest {
     private PartieEntreJoueurs partie(Cadence cadence) {
         Joueur alice = new Joueur("alice", "alice@exemple.com");
         Joueur bob = new Joueur("bob", "bob@exemple.com");
-        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, cadence, Couleur.BLANC, null, new CalculElo(), Clock.systemUTC());
+        PartieEntreJoueurs partie = new PartieEntreJoueurs(alice, cadence, Couleur.BLANC, null, new CalculAPointsFixes(), Clock.systemUTC());
         partie.rejoindre(bob);
         files.ajouter(partie);
         return partie;
@@ -119,7 +120,8 @@ class FilesDePartiesTest {
 
             assertEquals(1, abandons.get());
             int total = blancs.classement(CategorieCadence.RAPIDE).points() + noirs.classement(CategorieCadence.RAPIDE).points();
-            assertEquals(3000, total);
+            // One wins what the other loses, once: the sum stays that of two new players.
+            assertEquals(2 * Classement.POINTS_INITIAUX, total);
         }
     }
 
@@ -167,7 +169,7 @@ class FilesDePartiesTest {
 
     private PartieEntreJoueurs partieDe(String premier, String second) {
         Joueur blancs = new Joueur(premier, premier + "@exemple.com");
-        PartieEntreJoueurs partie = new PartieEntreJoueurs(blancs, RAPIDE, Couleur.BLANC, null, new CalculElo(), Clock.systemUTC());
+        PartieEntreJoueurs partie = new PartieEntreJoueurs(blancs, RAPIDE, Couleur.BLANC, null, new CalculAPointsFixes(), Clock.systemUTC());
         partie.rejoindre(new Joueur(second, second + "@exemple.com"));
         files.ajouter(partie);
         return partie;

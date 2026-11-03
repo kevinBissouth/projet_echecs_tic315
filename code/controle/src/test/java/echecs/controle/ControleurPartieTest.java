@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import echecs.metier.jeu.Couleur;
 import echecs.metier.jeu.MotifFin;
-import echecs.metier.joueur.CalculElo;
+import echecs.metier.joueur.CalculAPointsFixes;
 import echecs.metier.joueur.CategorieCadence;
 import echecs.metier.joueur.Joueur;
 import echecs.metier.partie.Cadence;
@@ -46,7 +46,7 @@ class ControleurPartieTest {
     private final ControleurPartie controleurBob = controleur(bob, partie -> ecranDeBob.add(partie.position()), new FauxMoteur());
 
     private ControleurPartie controleur(Joueur joueur, ObservateurPartie vue, MoteurEchecs moteur) {
-        return new ControleurPartie(joueur, vue, moteur, new CalculElo(), depotParties, depotJoueurs, files, IMMEDIAT,
+        return new ControleurPartie(joueur, vue, moteur, new CalculAPointsFixes(), depotParties, depotJoueurs, files, IMMEDIAT,
                 Clock.systemUTC());
     }
 
@@ -158,7 +158,7 @@ class ControleurPartieTest {
         assertEquals(enregistrementsAvant + 1, depotParties.enregistrements);
         assertEquals(List.of(partie), depotParties.partiesTermineesDe(alice));
         assertEquals(List.of(alice, bob), depotJoueurs.tous());
-        assertEquals(1510, bob.classement(CategorieCadence.RAPIDE).points());
+        assertEquals(408, bob.classement(CategorieCadence.RAPIDE).points());
     }
 
     @Test
@@ -306,7 +306,7 @@ class ControleurPartieTest {
 
         assertThrows(TransitionInterditeException.class, () -> controleurBob.jouerCoup("e7", "e5", null));
         assertEquals(Optional.of(Resultat.VICTOIRE_NOIRS), partie.resultat());
-        assertEquals(1490, alice.classement(CategorieCadence.RAPIDE).points());
+        assertEquals(392, alice.classement(CategorieCadence.RAPIDE).points());
     }
 
     /** The engine thinks outside the queue: the player can still act, and its late move is ignored. */
@@ -322,7 +322,7 @@ class ControleurPartieTest {
         };
         Partie partie;
         try (ExecutorService fond = Executors.newVirtualThreadPerTaskExecutor()) {
-            ControleurPartie controleur = new ControleurPartie(alice, vue -> { }, moteurLent, new CalculElo(),
+            ControleurPartie controleur = new ControleurPartie(alice, vue -> { }, moteurLent, new CalculAPointsFixes(),
                     depotParties, depotJoueurs, files, fond, Clock.systemUTC());
             controleur.demarrerPartieContreOrdinateur(FORCE, Couleur.BLANC);
             partie = depotParties.partieActiveDe(alice).orElseThrow();

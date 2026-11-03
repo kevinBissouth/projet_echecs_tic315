@@ -16,7 +16,7 @@ import echecs.infrastructure.DepotJoueursSql;
 import echecs.infrastructure.DepotPartiesSql;
 import echecs.infrastructure.MotsDePasseBcrypt;
 import echecs.metier.joueur.CalculClassement;
-import echecs.metier.joueur.CalculElo;
+import echecs.metier.joueur.CalculAPointsFixes;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
@@ -91,7 +91,7 @@ public class Application {
 
     @Bean
     CalculClassement calculClassement() {
-        return new CalculElo();
+        return new CalculAPointsFixes();
     }
 
     /** Two engines at most at once: each one is a process, and the server is small. */

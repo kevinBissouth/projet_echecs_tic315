@@ -195,6 +195,6 @@ class CompteApiTest {
         joueurs.enregistrer(sami);
 
         int points = sql.sql("select points from classements where pseudo = 'sami' and categorie = 'BLITZ'").query(Integer.class).single();
-        assertEquals(1509, points);
+        assertEquals(409, points);
     }
 }

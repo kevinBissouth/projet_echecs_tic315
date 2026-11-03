@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import echecs.metier.jeu.Couleur;
-import echecs.metier.joueur.CalculElo;
+import echecs.metier.joueur.CalculAPointsFixes;
 import echecs.metier.joueur.CategorieCadence;
 import echecs.metier.joueur.Classement;
 import echecs.metier.joueur.Joueur;
@@ -22,7 +22,7 @@ class EtatsPartieTest {
     private final Joueur bob = new Joueur("bob", "bob@exemple.com");
     private final Joueur carla = new Joueur("carla", "carla@exemple.com");
     private final PartieEntreJoueurs partie =
-            new PartieEntreJoueurs(alice, BLITZ, Couleur.BLANC, null, new CalculElo(), horloge);
+            new PartieEntreJoueurs(alice, BLITZ, Couleur.BLANC, null, new CalculAPointsFixes(), horloge);
 
     @Test
     void enAttenteOnNePeutNiJouerNiAbandonnerNiProposerLaNulle() {

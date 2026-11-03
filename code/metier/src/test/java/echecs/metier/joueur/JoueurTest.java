@@ -57,7 +57,7 @@ class JoueurTest {
 
     @ParameterizedTest
     @EnumSource(CategorieCadence.class)
-    void chaqueFamilleDeCadenceDemarreA1500Points(CategorieCadence categorie) {
+    void chaqueFamilleDeCadenceDemarreA400Points(CategorieCadence categorie) {
         assertEquals(Classement.POINTS_INITIAUX, alice.classement(categorie).points());
     }
 
@@ -65,9 +65,9 @@ class JoueurTest {
     void modifierUnClassementNeChangePasLesAutres_RG6() {
         alice.classement(CategorieCadence.BLITZ).modifierPoints(9);
 
-        assertEquals(1509, alice.classement(CategorieCadence.BLITZ).points());
-        assertEquals(1500, alice.classement(CategorieCadence.BULLET).points());
-        assertEquals(1500, alice.classement(CategorieCadence.RAPIDE).points());
+        assertEquals(409, alice.classement(CategorieCadence.BLITZ).points());
+        assertEquals(400, alice.classement(CategorieCadence.BULLET).points());
+        assertEquals(400, alice.classement(CategorieCadence.RAPIDE).points());
     }
 
     @Test

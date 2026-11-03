@@ -1,7 +1,7 @@
 package echecs.metier.joueur;
 
 public class Classement {
-    public static final int POINTS_INITIAUX = 1500;
+    public static final int POINTS_INITIAUX = 400;
 
     private int points;
 
