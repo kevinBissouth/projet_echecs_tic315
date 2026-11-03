@@ -1,5 +1,7 @@
 // La ligne ouverte avec le serveur : c'est par elle qu'arrivent les coups de l'adversaire.
 
+import { api } from "./api.js";
+
 const DELAI_DE_RECONNEXION_MS = 2000;
 
 const ecouteurs = new Set();
@@ -15,8 +17,24 @@ function connecter() {
   });
   ligne.addEventListener("close", () => {
     ligne = null;
-    if (voulue) setTimeout(() => voulue && !ligne && connecter(), DELAI_DE_RECONNEXION_MS);
+    if (voulue) reconnecterPlusTard();
   });
+}
+
+/**
+ * Le serveur a pu redémarrer et perdre la session : un appel le vérifie d'abord, et api.js ramène alors à la connexion.
+ * Sans réseau, l'appel échoue : on réessaie plus tard, comme pour la ligne elle-même.
+ */
+function reconnecterPlusTard() {
+  setTimeout(async () => {
+    if (!voulue || ligne) return;
+    try {
+      await api.partie();
+      connecter();
+    } catch {
+      reconnecterPlusTard();
+    }
+  }, DELAI_DE_RECONNEXION_MS);
 }
 
 export function ouvrirLigne() {
