@@ -118,4 +118,15 @@ class JoueurTest {
         alice.suspendre();
         assertThrows(IllegalStateException.class, alice::suspendre);
     }
+
+    @Test
+    void unJoueurReconstitueGardeSesDroitsEtSesPoints() {
+        Joueur joueur = Joueur.reconstituer("alice", "alice@exemple.com", RoleCompte.JOUEUR, EtatCompte.SUSPENDU,
+                java.util.Map.of(CategorieCadence.BLITZ, 1623));
+
+        assertEquals(EtatCompte.SUSPENDU, joueur.etat());
+        assertFalse(joueur.peutJouer());
+        assertEquals(1623, joueur.classement(CategorieCadence.BLITZ).points());
+        assertEquals(Classement.POINTS_INITIAUX, joueur.classement(CategorieCadence.RAPIDE).points());
+    }
 }

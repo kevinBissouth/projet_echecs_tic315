@@ -20,6 +20,15 @@ public class Joueur {
         return new Joueur(pseudo, email, RoleCompte.ADMINISTRATEUR);
     }
 
+    /** Rebuilds a stored player. Rights and points come from the database, so nothing is reset. */
+    public static Joueur reconstituer(String pseudo, String email, RoleCompte role, EtatCompte etat,
+                                      Map<CategorieCadence, Integer> points) {
+        Joueur joueur = new Joueur(pseudo, email, role);
+        joueur.etat = etat;
+        points.forEach((categorie, valeur) -> joueur.classements.put(categorie, new Classement(valeur)));
+        return joueur;
+    }
+
     private Joueur(String pseudo, String email, RoleCompte role) {
         this.role = role;
         this.pseudo = exigerRenseigne(pseudo, "pseudo");

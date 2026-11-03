@@ -3,7 +3,15 @@ package echecs.metier.joueur;
 public class Classement {
     public static final int POINTS_INITIAUX = 1500;
 
-    private int points = POINTS_INITIAUX;
+    private int points;
+
+    public Classement() {
+        this(POINTS_INITIAUX);
+    }
+
+    Classement(int points) {
+        this.points = points;
+    }
 
     public int points() {
         return points;
