@@ -12,6 +12,8 @@ const ELO_MAXIMUM = 3190;
 const PAS_DE_LA_BARRE = 10;
 const CADENCE_PAR_DEFAUT = "5+0";
 const NOMBRE_LIGNES_ACCUEIL = 3;
+const DELAI_DE_RECHERCHE_MS = 180;
+const DELAI_FERMETURE_LISTE_MS = 150;
 const INTERVALLE_ACTUALISATION_MS = 5000;
 const AIDE_ELO = `De ${ELO_MINIMUM} à ${ELO_MAXIMUM}. Glissez la barre ou saisissez une valeur.`;
 const estUnEloValide = (valeur) => Number.isInteger(valeur) && valeur >= ELO_MINIMUM && valeur <= ELO_MAXIMUM;
@@ -73,8 +75,10 @@ const vueInvitation = (cadence) => html`
   <form class="panneau-formulaire" data-action="creer" novalidate>
     <div class="champ">
       <label for="invite">Pseudo du joueur</label>
-      <input id="invite" name="invite" autocomplete="off" autocapitalize="none" required>
-      <p class="aide">Il recevra l'invitation et pourra l'accepter ou la refuser.</p>
+      <input id="invite" name="invite" autocomplete="off" autocapitalize="none" spellcheck="false" required
+             role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" aria-describedby="aide-invite">
+      <ul class="suggestions" id="suggestions" role="listbox" aria-label="Joueurs trouvés" hidden></ul>
+      <p class="aide" id="aide-invite">Tapez les premières lettres : les joueurs correspondants s'affichent.</p>
     </div>
     ${menuCadence(cadence)}
     ${groupeCouleurs()}
@@ -206,6 +210,87 @@ const tableauDeBord = ({ salon, bilans, parties }) => {
     </div>`;
 };
 
+const suggestion = (pseudo, debut, indice) => html`
+  <li role="option" id="suggestion-${indice}" data-pseudo="${pseudo}" aria-selected="false">
+    <span class="avatar" aria-hidden="true">${pseudo[0].toUpperCase()}</span>
+    <span><mark>${pseudo.slice(0, debut.length)}</mark>${pseudo.slice(debut.length)}</span>
+  </li>`;
+
+/** Recherche pendant la frappe : la liste suit les lettres tapées, au doigt comme au clavier. */
+function brancherRecherche(zone) {
+  const saisie = zone.querySelector("#invite");
+  const liste = zone.querySelector("#suggestions");
+  if (!saisie) return;
+  let minuterie;
+  let pseudos = [];
+  let actif = -1;
+
+  const fermer = () => {
+    liste.hidden = true;
+    saisie.setAttribute("aria-expanded", "false");
+    saisie.removeAttribute("aria-activedescendant");
+    actif = -1;
+  };
+  const choisir = (pseudo) => {
+    saisie.value = pseudo;
+    fermer();
+  };
+  const marquer = (indice) => {
+    actif = indice;
+    liste.querySelectorAll("[role=option]").forEach((option, rang) => option.setAttribute("aria-selected", String(rang === indice)));
+    const option = liste.querySelector(`#suggestion-${indice}`);
+    saisie.setAttribute("aria-activedescendant", option.id);
+    option.scrollIntoView({ block: "nearest" });
+  };
+  const montrer = (debut, joueurs) => {
+    pseudos = joueurs.map(({ pseudo }) => pseudo);
+    afficher(liste, pseudos.length === 0
+      ? html`<li class="suggestion-vide" role="presentation">Aucun joueur ne commence par « ${debut} ».</li>`
+      : html`${pseudos.map((pseudo, indice) => suggestion(pseudo, debut, indice))}`);
+    liste.hidden = false;
+    saisie.setAttribute("aria-expanded", "true");
+    actif = -1;
+  };
+
+  saisie.addEventListener("input", () => {
+    clearTimeout(minuterie);
+    const debut = saisie.value.trim();
+    if (!debut) {
+      fermer();
+      return;
+    }
+    minuterie = setTimeout(async () => {
+      const joueurs = await api.rechercherJoueurs(debut).catch(() => []);
+      // Une réponse arrivée après une nouvelle frappe ne correspond plus à ce qui est écrit.
+      if (saisie.value.trim() === debut) montrer(debut, joueurs);
+    }, DELAI_DE_RECHERCHE_MS);
+  });
+  saisie.addEventListener("keydown", (evenement) => {
+    if (liste.hidden) return;
+    if (evenement.key === "Escape") {
+      evenement.preventDefault();
+      fermer();
+      return;
+    }
+    if (pseudos.length === 0) return;
+    if (evenement.key === "ArrowDown" || evenement.key === "ArrowUp") {
+      evenement.preventDefault();
+      const pas = evenement.key === "ArrowDown" ? 1 : -1;
+      marquer((actif + pas + pseudos.length) % pseudos.length);
+    } else if (evenement.key === "Enter" && actif >= 0) {
+      evenement.preventDefault();
+      choisir(pseudos[actif]);
+    }
+  });
+  liste.addEventListener("pointerdown", (evenement) => {
+    const option = evenement.target.closest("[data-pseudo]");
+    if (!option) return;
+    evenement.preventDefault();
+    choisir(option.dataset.pseudo);
+  });
+  saisie.addEventListener("blur", () => setTimeout(fermer, DELAI_FERMETURE_LISTE_MS));
+}
+
 export function vueSalon(contenu, { aller }) {
   let cadence = CADENCE_PAR_DEFAUT;
   let vue = "principale";
@@ -250,6 +335,7 @@ export function vueSalon(contenu, { aller }) {
   const VUES = { principale: vuePrincipale, invitation: vueInvitation, ordinateur: vueOrdinateur };
   const dessinerVue = () => {
     afficher(corps, VUES[vue](cadence));
+    brancherRecherche(corps);
     dessinerBandes();
   };
   const choisirOnglet = (onglet) => {

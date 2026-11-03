@@ -42,6 +42,7 @@ export const api = {
   annulerGoogle: () => appeler("POST", "/api/google/annulation"),
   deconnecter: () => appeler("POST", "/api/deconnexion"),
 
+  rechercherJoueurs: (debut) => appeler("GET", `/api/joueurs?debut=${encodeURIComponent(debut)}`),
   salon: () => appeler("GET", "/api/parties"),
   creerPartie: (demande) => appeler("POST", "/api/parties", demande),
   contreOrdinateur: (demande) => appeler("POST", "/api/parties/ordinateur", demande),
