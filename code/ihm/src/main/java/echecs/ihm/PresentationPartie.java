@@ -37,7 +37,8 @@ public class PresentationPartie {
     public record VuePartie(String id, boolean contreOrdinateur, String etat, String position, String trait, String maCouleur,
                             VueCamp moi, VueCamp adversaire, String cadence, CategorieCadence categorie, List<VueCoup> coups,
                             Map<String, List<String>> destinations, String caseEnEchec, boolean nulleProposeeParMoi,
-                            boolean nulleProposeeParAdversaire, boolean annulable, String issue, String motif) { }
+                            boolean nulleProposeeParAdversaire, boolean annulable, String issue, String motif,
+                            boolean maDemande, VueCamp demande, Long delaiDeReponseMillisecondes, Long expirationMillisecondes) { }
 
     private final Clock horloge;
 
@@ -65,7 +66,32 @@ public class PresentationPartie {
                 partie.etat() == EtatPartie.EN_ATTENTE
                         || (partie.etat() == EtatPartie.EN_COURS && partie.coups().size() < COUPS_AVANT_FIN_DE_L_ANNULATION),
                 issue(partie, maCouleur),
-                partie.motifFin().map(Enum::name).orElse(null));
+                partie.motifFin().map(Enum::name).orElse(null),
+                demandeEnAttente(partie).filter(joueur::equals).isPresent(),
+                demandeVueParLeCreateur(partie, joueur, categorie),
+                demandeEnAttente(partie).isEmpty() ? null : restantAvant(((PartieEntreJoueurs) partie).demandeExpireLe().orElseThrow()),
+                partie instanceof PartieEntreJoueurs entreJoueurs && partie.etat() == EtatPartie.EN_ATTENTE
+                        ? restantAvant(entreJoueurs.expireLe()) : null);
+    }
+
+    /** Durations rather than dates: the phone's clock may differ from the server's, a duration stays right on both. */
+    public long restantAvant(Instant echeance) {
+        return Math.max(Duration.between(horloge.instant(), echeance).toMillis(), 0);
+    }
+
+    private static Optional<Joueur> demandeEnAttente(Partie partie) {
+        return partie instanceof PartieEntreJoueurs entreJoueurs && partie.etat() == EtatPartie.EN_ATTENTE
+                ? entreJoueurs.demandeur() : Optional.empty();
+    }
+
+    /** Only the creator is asked to accept: the one who asked sees that they wait. */
+    private static VueCamp demandeVueParLeCreateur(Partie partie, Joueur joueur, CategorieCadence categorie) {
+        if (!(partie instanceof PartieEntreJoueurs entreJoueurs) || !entreJoueurs.createur().equals(joueur)) {
+            return null;
+        }
+        return demandeEnAttente(partie)
+                .map(demandeur -> new VueCamp(demandeur.pseudo(), demandeur.classement(categorie).points(), null, false))
+                .orElse(null);
     }
 
     private VueCamp adversaire(Partie partie, Joueur joueur, CategorieCadence categorie) {

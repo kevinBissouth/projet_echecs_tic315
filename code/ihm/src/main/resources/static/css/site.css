@@ -744,6 +744,14 @@ fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
   background: var(--bleu-voile); border: 1px solid var(--bleu); border-radius: 4px;
 }
 .bandeau p { flex: 1 1 14rem; }
+
+/* Indisponible : la partie reste visible, grisée, avec sa raison. */
+.indisponible { opacity: .5; }
+.indisponible .bouton[disabled] { cursor: not-allowed; }
+.raison, .expiration { font-size: .8125rem; color: var(--encre-douce); font-variant-numeric: tabular-nums; }
+.bandeau .raison, .bandeau .expiration { display: block; margin-top: .15rem; }
+.decompte-demande { margin-top: .75rem; }
+.decompte-demande strong { color: var(--bleu-clair); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 .bandeau-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 
 /* Réglage de l'Elo : une barre et une saisie qui restent synchronisées. */

@@ -3,6 +3,8 @@ import { icone } from "./icones.js";
 import { ouvrirPlus } from "./plus.js";
 import { session, actualiserSession, fermerSession } from "./session.js";
 import { ouvrirLigne, fermerLigne, ecouter } from "./temps-reel.js";
+import { suivreLesDemandes } from "./demandes.js";
+import { suivreLesDecomptes } from "./duree.js";
 import { vueAccueil } from "./vues/accueil.js";
 import { vueConnexion, vueInscription } from "./vues/authentification.js";
 import { vueSalon } from "./vues/salon.js";
@@ -117,12 +119,14 @@ addEventListener("click", async (evenement) => {
     naviguer();
   }
 });
-// Le joueur qui attendait un adversaire rejoint l'échiquier dès que quelqu'un arrive.
+// Dès que sa partie commence, le joueur rejoint l'échiquier. Une partie où il n'est pas assis ne le déplace pas.
 ecouter((partie) => {
-  if (partie.etat === "EN_COURS" && partie.coups.length === 0 && location.hash !== "#/partie") {
+  if (partie.moi && partie.etat === "EN_COURS" && partie.coups.length === 0 && location.hash !== "#/partie") {
     location.hash = "#/partie";
   }
 });
+suivreLesDemandes();
+suivreLesDecomptes();
 addEventListener("hashchange", naviguer);
 // Sans réponse du serveur, on reste sur les pages publiques : leurs formulaires afficheront l'erreur.
 actualiserSession().catch(() => {}).finally(naviguer);

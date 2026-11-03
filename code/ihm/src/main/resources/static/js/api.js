@@ -46,8 +46,12 @@ export const api = {
   salon: () => appeler("GET", "/api/parties"),
   creerPartie: (demande) => appeler("POST", "/api/parties", demande),
   contreOrdinateur: (demande) => appeler("POST", "/api/parties/ordinateur", demande),
-  rejoindre: (id) => appeler("POST", `/api/parties/${id}/rejoindre`),
+  demander: (id) => appeler("POST", `/api/parties/${id}/demande`),
+  retirerDemande: (id) => appeler("DELETE", `/api/parties/${id}/demande`),
+  accepterDemande: (id) => appeler("POST", `/api/parties/${id}/demande/acceptation`),
+  refuserDemande: (id) => appeler("POST", `/api/parties/${id}/demande/refus`),
   refuser: (id) => appeler("POST", `/api/parties/${id}/refus`),
+  annulerEnAttente: (id) => appeler("POST", `/api/parties/${id}/annulation`),
 
   partie: () => appeler("GET", "/api/partie"),
   jouer: (coup) => appeler("POST", "/api/partie/coups", coup),

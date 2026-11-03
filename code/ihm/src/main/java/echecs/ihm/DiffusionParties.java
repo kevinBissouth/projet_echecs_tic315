@@ -43,6 +43,12 @@ public class DiffusionParties extends TextWebSocketHandler {
         }
     }
 
+    /** Online means a page of the site is open: each one keeps a line to the server. */
+    public boolean estEnLigne(String pseudo) {
+        Set<WebSocketSession> sessions = lignes.get(pseudo);
+        return sessions != null && !sessions.isEmpty();
+    }
+
     /** A browser that left must not disturb the game: the failure is reported and the game goes on. */
     public void envoyer(String pseudo, Object contenu) {
         Set<WebSocketSession> sessions = lignes.get(pseudo);

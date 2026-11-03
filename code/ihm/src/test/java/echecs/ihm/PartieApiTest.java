@@ -63,10 +63,40 @@ class PartieApiTest {
 
         HttpResponse<String> envoyer(String chemin, String json) throws IOException, InterruptedException {
             lire("/api/moi");
-            String jeton = cookies.getCookieStore().getCookies().stream().filter(c -> c.getName().equals("XSRF-TOKEN")).map(HttpCookie::getValue).findFirst().orElse("");
             return client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + chemin))
-                    .header("Content-Type", "application/json").header("X-XSRF-TOKEN", jeton)
+                    .header("Content-Type", "application/json").header("X-XSRF-TOKEN", jeton())
                     .POST(HttpRequest.BodyPublishers.ofString(json)).build(), HttpResponse.BodyHandlers.ofString());
+        }
+
+        HttpResponse<String> supprimer(String chemin) throws IOException, InterruptedException {
+            lire("/api/moi");
+            return client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + chemin))
+                    .header("X-XSRF-TOKEN", jeton()).DELETE().build(), HttpResponse.BodyHandlers.ofString());
+        }
+
+        String jeton() {
+            return cookies.getCookieStore().getCookies().stream().filter(c -> c.getName().equals("XSRF-TOKEN")).map(HttpCookie::getValue).findFirst().orElse("");
+        }
+
+        /** The line a page of the site keeps open: it makes the player online. */
+        WebSocket ouvrirLigne(LinkedBlockingQueue<String> recus) throws Exception {
+            String cookie = cookies.getCookieStore().getCookies().stream()
+                    .filter(c -> c.getName().equals("JSESSIONID")).map(HttpCookie::toString).findFirst().orElseThrow();
+            return HttpClient.newHttpClient().newWebSocketBuilder()
+                    .header("Cookie", cookie)
+                    .header("Origin", "http://localhost:" + port)
+                    .buildAsync(URI.create("ws://localhost:" + port + "/ws/partie"), new WebSocket.Listener() {
+                        @Override
+                        public CompletionStage<?> onText(WebSocket webSocket, CharSequence texte, boolean dernier) {
+                            recus.add(texte.toString());
+                            webSocket.request(1);
+                            return null;
+                        }
+                    }).get(10, TimeUnit.SECONDS);
+        }
+
+        JsonNode salon() throws Exception {
+            return JSON.readTree(lire("/api/parties").body());
         }
 
         JsonNode partie() throws Exception {
@@ -79,18 +109,33 @@ class PartieApiTest {
     }
 
     private Joueur[] partieCommencee() throws Exception {
-        Joueur createur = new Joueur("crea");
+        Joueur createur = createurEnLigne("crea");
         Joueur adversaire = new Joueur("adve");
-        assertEquals(201, createur.envoyer("/api/parties", "{\"cadence\":\"5+0\",\"couleur\":\"BLANC\"}").statusCode());
-        JsonNode salon = JSON.readTree(adversaire.lire("/api/parties").body());
-        String id = null;
+        String id = proposer(createur, "BLANC");
+        assertEquals(200, adversaire.envoyer("/api/parties/" + id + "/demande", "{}").statusCode());
+        assertEquals(200, createur.envoyer("/api/parties/" + id + "/demande/acceptation", "{}").statusCode());
+        return new Joueur[] {createur, adversaire};
+    }
+
+    private Joueur createurEnLigne(String prefixe) throws Exception {
+        Joueur createur = new Joueur(prefixe);
+        createur.ouvrirLigne(new LinkedBlockingQueue<>());
+        return createur;
+    }
+
+    private static String proposer(Joueur createur, String couleur) throws Exception {
+        HttpResponse<String> reponse = createur.envoyer("/api/parties", "{\"cadence\":\"5+0\",\"couleur\":\"" + couleur + "\"}");
+        assertEquals(201, reponse.statusCode());
+        return JSON.readTree(reponse.body()).get("id").asString();
+    }
+
+    private static JsonNode ouverteDe(JsonNode salon, String id) {
         for (JsonNode ouverte : salon.get("ouvertes")) {
-            if (ouverte.get("pseudo").asString().equals(createur.pseudo)) {
-                id = ouverte.get("id").asString();
+            if (ouverte.get("id").asString().equals(id)) {
+                return ouverte;
             }
         }
-        assertEquals(200, adversaire.envoyer("/api/parties/" + id + "/rejoindre", "{}").statusCode());
-        return new Joueur[] {createur, adversaire};
+        throw new AssertionError("La partie " + id + " n'est pas proposée");
     }
 
     @Test
@@ -166,7 +211,7 @@ class PartieApiTest {
         assertEquals(409, joueur.envoyer("/api/parties", "{\"cadence\":\"5+0\",\"invite\":\"personne\"}").statusCode());
         assertEquals(409, joueur.envoyer("/api/parties/ordinateur", "{\"elo\":50}").statusCode());
         assertEquals(409, joueur.envoyer("/api/parties/ordinateur", "{\"elo\":3191}").statusCode());
-        assertEquals(409, joueur.envoyer("/api/parties/" + UUID.randomUUID() + "/rejoindre", "{}").statusCode());
+        assertEquals(409, joueur.envoyer("/api/parties/" + UUID.randomUUID() + "/demande", "{}").statusCode());
         assertEquals(204, joueur.lire("/api/partie").statusCode());
     }
 
@@ -182,26 +227,72 @@ class PartieApiTest {
         assertFalse(autre.lire("/api/parties").body().contains(createur.pseudo));
 
         assertEquals(204, invite.envoyer("/api/parties/" + salonInvite.get("invitations").get(0).get("id").asString() + "/refus", "{}").statusCode());
-        assertEquals("annulee", createur.partie().get("issue").asString());
+        assertEquals(0, createur.salon().get("mesParties").size());
+    }
+
+    @Test
+    void uneDemandeAUnCreateurHorsLigneEstRefusee() throws Exception {
+        Joueur absent = new Joueur("abse");
+        String id = proposer(absent, "BLANC");
+        Joueur visiteur = new Joueur("visi");
+
+        assertFalse(ouverteDe(visiteur.salon(), id).get("enLigne").asBoolean());
+        assertEquals(409, visiteur.envoyer("/api/parties/" + id + "/demande", "{}").statusCode());
+    }
+
+    @Test
+    void leCreateurRefuseLaDemandeEtLaPartieEstAnnulee() throws Exception {
+        Joueur createur = createurEnLigne("hote");
+        String id = proposer(createur, "NOIR");
+        Joueur demandeur = new Joueur("dema");
+
+        assertEquals(200, demandeur.envoyer("/api/parties/" + id + "/demande", "{}").statusCode());
+        assertTrue(demandeur.partie().get("maDemande").asBoolean());
+        assertEquals("EN_ATTENTE", demandeur.partie().get("etat").asString());
+        JsonNode mienne = createur.salon().get("mesParties").get(0);
+        assertTrue(mienne.get("sollicitee").asBoolean());
+
+        assertEquals(204, createur.envoyer("/api/parties/" + id + "/demande/refus", "{}").statusCode());
+        assertEquals(204, demandeur.lire("/api/partie").statusCode());
+        assertEquals(0, createur.salon().get("mesParties").size());
+    }
+
+    @Test
+    void leDemandeurRetireSaDemandeEtLaPartieResteProposee() throws Exception {
+        Joueur createur = createurEnLigne("hote");
+        String id = proposer(createur, "BLANC");
+        Joueur demandeur = new Joueur("dema");
+        assertEquals(200, demandeur.envoyer("/api/parties/" + id + "/demande", "{}").statusCode());
+
+        assertEquals(204, demandeur.supprimer("/api/parties/" + id + "/demande").statusCode());
+
+        assertFalse(createur.salon().get("mesParties").get(0).get("sollicitee").asBoolean());
+        assertEquals(204, demandeur.lire("/api/partie").statusCode());
+    }
+
+    @Test
+    void lesAutresPartiesDUnJoueurEnPartieRestentVisiblesMaisOccupees_RG11() throws Exception {
+        Joueur createur = createurEnLigne("hote");
+        String premiere = proposer(createur, "BLANC");
+        String seconde = proposer(createur, "NOIR");
+        Joueur adversaire = new Joueur("adve");
+        Joueur visiteur = new Joueur("visi");
+        assertTrue(ouverteDe(visiteur.salon(), seconde).get("expirationMillisecondes").asLong() > 0);
+
+        adversaire.envoyer("/api/parties/" + premiere + "/demande", "{}");
+        createur.envoyer("/api/parties/" + premiere + "/demande/acceptation", "{}");
+
+        JsonNode autre = ouverteDe(visiteur.salon(), seconde);
+        assertTrue(autre.get("occupe").asBoolean());
+        assertEquals(409, visiteur.envoyer("/api/parties/" + seconde + "/demande", "{}").statusCode());
+        assertEquals(1, createur.salon().get("mesParties").size(), "seule la seconde attend encore");
     }
 
     @Test
     void leCoupDeLAdversaireArriveParLeWebSocket() throws Exception {
         Joueur[] joueurs = partieCommencee();
         LinkedBlockingQueue<String> recus = new LinkedBlockingQueue<>();
-        String cookie = joueurs[1].cookies.getCookieStore().getCookies().stream()
-                .filter(c -> c.getName().equals("JSESSIONID")).map(HttpCookie::toString).findFirst().orElseThrow();
-        WebSocket ligne = HttpClient.newHttpClient().newWebSocketBuilder()
-                .header("Cookie", cookie)
-                .header("Origin", "http://localhost:" + port)
-                .buildAsync(URI.create("ws://localhost:" + port + "/ws/partie"), new WebSocket.Listener() {
-                    @Override
-                    public CompletionStage<?> onText(WebSocket webSocket, CharSequence texte, boolean dernier) {
-                        recus.add(texte.toString());
-                        webSocket.request(1);
-                        return null;
-                    }
-                }).get(10, TimeUnit.SECONDS);
+        WebSocket ligne = joueurs[1].ouvrirLigne(recus);
 
         joueurs[0].jouer("e2", "e4");
 

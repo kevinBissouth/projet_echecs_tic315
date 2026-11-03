@@ -4,6 +4,8 @@ import { Echiquier, lirePosition } from "../echiquier.js";
 import { icone, iconeFamille, libelleCadence, libelleCourt } from "../icones.js";
 import { CADENCES, POSITION_INITIALE } from "../donnees.js";
 import { session } from "../session.js";
+import { formaterTemps } from "../duree.js";
+import { attendreLaReponse } from "../demandes.js";
 import { lignePartie, NOMS_FAMILLES } from "./historique.js";
 
 // Échelle affichée sur le site : le serveur la convertit vers celle de Stockfish (100 devient 1320, 3190 reste 3190).
@@ -103,36 +105,60 @@ const vueOrdinateur = () => html`
     <button class="bouton bouton-principal bouton-grand" type="submit">Commencer la partie</button>
   </form>`;
 
-const ligneOuverte = (partie) => html`
-  <li class="ligne-ouverte">
-    <div class="ligne-ouverte-joueur">
-      <strong>${partie.pseudo}</strong> <span class="discret">(${partie.classement})</span>
-      <p class="discret">${iconeFamille(NOMS_FAMILLES[partie.categorie])} ${libelleCadence(partie.cadence)}, ${COULEUR_DU_CREATEUR[partie.couleur] ? html`il joue ${COULEUR_DU_CREATEUR[partie.couleur]}` : "couleurs au hasard"}</p>
-    </div>
-    <button class="bouton bouton-petit" type="button" data-rejoindre="${partie.id}">Rejoindre</button>
-  </li>`;
+const expiration = (partie) => html`
+  <span class="expiration">Expire dans <span data-reste="${partie.expirationMillisecondes}">${formaterTemps(partie.expirationMillisecondes)}</span></span>`;
 
-const listeOuvertes = (parties) => parties.length === 0
+/** Une partie qu'on ne peut pas rejoindre reste dans la liste, grisée : le joueur voit pourquoi. */
+function raisonIndisponible(partie, jeJoue) {
+  if (jeJoue) return "Vous êtes en partie";
+  if (!partie.enLigne) return "Hors ligne";
+  if (partie.occupe) return "En partie";
+  if (partie.sollicitee) return "Déjà sollicitée";
+  return null;
+}
+
+const ligneOuverte = (jeJoue) => (partie) => {
+  const raison = raisonIndisponible(partie, jeJoue);
+  return html`
+    <li class="ligne-ouverte ${raison ? "indisponible" : ""}">
+      <div class="ligne-ouverte-joueur">
+        <strong>${partie.pseudo}</strong> <span class="discret">(${partie.classement})</span>
+        <p class="discret">${iconeFamille(NOMS_FAMILLES[partie.categorie])} ${libelleCadence(partie.cadence)}, ${COULEUR_DU_CREATEUR[partie.couleur] ? html`il joue ${COULEUR_DU_CREATEUR[partie.couleur]}` : "couleurs au hasard"}</p>
+        <p class="discret">${raison ? html`<span class="raison">${raison}</span>` : expiration(partie)}</p>
+      </div>
+      <button class="bouton bouton-petit" type="button" data-rejoindre="${partie.id}" ${raison ? html`disabled` : ""}>Rejoindre</button>
+    </li>`;
+};
+
+const listeOuvertes = (parties, jeJoue) => parties.length === 0
   ? html`<div class="vide">
       <p>Aucune partie ouverte pour le moment.</p>
       <p>Créez-en une : elle apparaîtra ici pour les autres joueurs.</p>
     </div>`
-  : html`<ul class="liste-ouvertes">${parties.map(ligneOuverte)}</ul>`;
+  : html`<ul class="liste-ouvertes">${parties.map(ligneOuverte(jeJoue))}</ul>`;
 
-const bandeauInvitation = (invitation) => html`
-  <div class="bandeau" role="status">
-    <p><strong>${invitation.pseudo}</strong> vous invite à une partie en ${libelleCadence(invitation.cadence)}.</p>
-    <div class="bandeau-actions">
-      <button class="bouton bouton-principal bouton-petit" type="button" data-rejoindre="${invitation.id}">Accepter</button>
-      <button class="bouton bouton-petit" type="button" data-refuser="${invitation.id}">Refuser</button>
-    </div>
-  </div>`;
+const bandeauInvitation = (jeJoue) => (invitation) => {
+  const raison = raisonIndisponible(invitation, jeJoue);
+  return html`
+    <div class="bandeau ${raison ? "indisponible" : ""}" role="status">
+      <p><strong>${invitation.pseudo}</strong> vous invite à une partie en ${libelleCadence(invitation.cadence)}.
+        ${raison ? html`<span class="raison">${raison}</span>` : expiration(invitation)}</p>
+      <div class="bandeau-actions">
+        <button class="bouton bouton-principal bouton-petit" type="button" data-rejoindre="${invitation.id}" ${raison ? html`disabled` : ""}>Accepter</button>
+        <button class="bouton bouton-petit" type="button" data-refuser="${invitation.id}">Refuser</button>
+      </div>
+    </div>`;
+};
 
-const bandeauAttente = (partie) => html`
-  <div class="bandeau" role="status">
-    <p>Votre partie en ${libelleCadence(partie.cadence)} attend un adversaire.</p>
+/** Mes parties qui attendent restent proposées pendant que je joue, grisées : personne ne peut les rejoindre. */
+const bandeauMienne = (jeJoue) => (partie) => html`
+  <div class="bandeau ${jeJoue ? "indisponible" : ""}" role="status">
+    <p>${partie.invite
+        ? html`Votre invitation à <strong>${partie.invite}</strong> en ${libelleCadence(partie.cadence)} attend sa réponse.`
+        : html`Votre partie en ${libelleCadence(partie.cadence)} attend un adversaire.`}
+      ${jeJoue ? html`<span class="raison">En pause pendant votre partie</span>` : expiration(partie)}</p>
     <div class="bandeau-actions">
-      <button class="bouton bouton-danger bouton-petit" type="button" data-annuler-partie>Annuler la partie</button>
+      <button class="bouton bouton-danger bouton-petit" type="button" data-annuler-partie="${partie.id}">Annuler</button>
     </div>
   </div>`;
 
@@ -187,25 +213,26 @@ const dernieresParties = (parties) => html`
     </div>
   </section>`;
 
+const jeJoueDans = (salon) => salon.partieCourante?.etat === "EN_COURS";
+
 const tableauDeBord = ({ salon, bilans, parties }) => {
-  const courante = salon.partieCourante;
-  const enAttente = courante?.etat === "EN_ATTENTE";
+  const jeJoue = jeJoueDans(salon);
   return html`
     ${carteProfil(bilans)}
-    ${salon.invitations.map(bandeauInvitation)}
-    ${enAttente && bandeauAttente(courante)}
-    ${courante?.etat === "EN_COURS" && bandeauReprise()}
+    ${jeJoue && bandeauReprise()}
+    ${salon.invitations.map(bandeauInvitation(jeJoue))}
+    ${salon.mesParties.map(bandeauMienne(jeJoue))}
     <section aria-labelledby="titre-ouvertes">
       <div class="section-tete">
         <h2 id="titre-ouvertes">Parties ouvertes</h2>
         ${salon.ouvertes.length > NOMBRE_LIGNES_ACCUEIL && html`<button class="lien-discret" type="button" data-ouvrir="ouvertes">Tout voir (${salon.ouvertes.length})</button>`}
       </div>
-      <div class="cadre">${listeOuvertes(salon.ouvertes.slice(0, NOMBRE_LIGNES_ACCUEIL))}</div>
+      <div class="cadre">${listeOuvertes(salon.ouvertes.slice(0, NOMBRE_LIGNES_ACCUEIL), jeJoue)}</div>
     </section>
     ${dernieresParties(parties)}
     <div class="barre-jouer">
-      <button class="bouton bouton-principal bouton-grand" type="button" data-ouvrir="nouvelle" ${courante ? html`disabled` : ""}>
-        ${enAttente ? "Partie en attente" : courante ? "Partie en cours" : "Jouer"}
+      <button class="bouton bouton-principal bouton-grand" type="button" data-ouvrir="nouvelle" ${jeJoue ? html`disabled` : ""}>
+        ${jeJoue ? "Partie en cours" : "Jouer"}
       </button>
     </div>`;
 };
@@ -342,7 +369,7 @@ export function vueSalon(contenu, { aller }) {
     contenu.querySelectorAll("[data-onglet]").forEach((bouton) => {
       bouton.setAttribute("aria-selected", String(bouton.dataset.onglet === onglet));
     });
-    if (onglet === "ouvertes") afficher(corps, listeOuvertes(donnees?.salon.ouvertes ?? []));
+    if (onglet === "ouvertes") afficher(corps, listeOuvertes(donnees?.salon.ouvertes ?? [], donnees && jeJoueDans(donnees.salon)));
     else dessinerVue();
   };
   const ouvrirFeuille = (onglet) => {
@@ -365,11 +392,31 @@ export function vueSalon(contenu, { aller }) {
     zone.prepend(alerte);
   };
 
+  let attenteOuverte = false;
+
+  /** Une seule fenêtre d'attente à la fois, même si le salon se recharge pendant qu'elle est ouverte. */
+  const attendre = (partie) => {
+    if (attenteOuverte) return;
+    attenteOuverte = true;
+    attendreLaReponse(partie, () => {
+      attenteOuverte = false;
+      actualiserSansDeranger();
+    });
+  };
+
   const charger = async () => {
     const [salon, bilans, parties] = await Promise.all([api.salon(), api.bilans(), api.mesParties()]);
     if (!actif) return;
     donnees = { salon, bilans, parties };
     afficher(tableau, tableauDeBord(donnees));
+    // Après un rechargement de la page, le joueur retrouve la demande qu'il attendait.
+    if (salon.partieCourante?.maDemande) attendre(salon.partieCourante);
+  };
+
+  const demander = async (id) => {
+    const partie = await api.demander(id);
+    feuille.close();
+    attendre(partie);
   };
 
   const actualiserSansDeranger = () => {
@@ -391,9 +438,10 @@ export function vueSalon(contenu, { aller }) {
     const rejoindre = target.closest("[data-rejoindre]");
     const refuser = target.closest("[data-refuser]");
     if (ouvrir) ouvrirFeuille(ouvrir.dataset.ouvrir);
-    if (rejoindre) agir(async () => { await api.rejoindre(rejoindre.dataset.rejoindre); aller("#/partie"); });
+    const annuler = target.closest("[data-annuler-partie]");
+    if (rejoindre) agir(() => demander(rejoindre.dataset.rejoindre));
     if (refuser) agir(async () => { await api.refuser(refuser.dataset.refuser); await charger(); });
-    if (target.closest("[data-annuler-partie]")) agir(async () => { await api.annuler(); await charger(); });
+    if (annuler) agir(async () => { await api.annulerEnAttente(annuler.dataset.annulerPartie); await charger(); });
   });
   contenu.querySelectorAll("[data-onglet]").forEach((bouton) => {
     bouton.addEventListener("click", () => choisirOnglet(bouton.dataset.onglet));
@@ -405,7 +453,7 @@ export function vueSalon(contenu, { aller }) {
       vue = bouton.dataset.vue;
       dessinerVue();
     }
-    if (rejoindre) agir(async () => { await api.rejoindre(rejoindre.dataset.rejoindre); feuille.close(); aller("#/partie"); });
+    if (rejoindre) agir(() => demander(rejoindre.dataset.rejoindre));
   });
   corps.addEventListener("change", (evenement) => {
     if (evenement.target.name !== "cadence") return;
