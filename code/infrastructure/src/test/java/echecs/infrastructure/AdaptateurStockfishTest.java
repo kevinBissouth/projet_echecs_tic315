@@ -19,7 +19,7 @@ class AdaptateurStockfishTest {
     private static final String POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     private static final Duration REFLEXION = Duration.ofMillis(10);
     private static final Duration DELAI = Duration.ofSeconds(5);
-    private static final int FORCE = 5;
+    private static final int FORCE = 100;
     private static final int LIMITE_SECONDES = 5;
 
     @TempDir
@@ -52,7 +52,7 @@ class AdaptateurStockfishTest {
         adaptateur(moteur, DELAI).calculerCoup(POSITION, FORCE);
 
         String commandes = Files.readString(journal);
-        assertTrue(commandes.contains("setoption name Skill Level value 5"));
+        assertTrue(commandes.contains("setoption name UCI_Elo value 1320"));
         assertTrue(commandes.contains("position fen " + POSITION));
         assertTrue(commandes.contains("go movetime 10"));
     }
@@ -63,9 +63,9 @@ class AdaptateurStockfishTest {
         String moteur = script("while read ligne; do echo \"$ligne\" >> " + journal
                 + "; case \"$ligne\" in go*) echo 'bestmove a2a3';; esac; done");
 
-        adaptateur(moteur, DELAI).calculerCoup(POSITION, 99);
+        adaptateur(moteur, DELAI).calculerCoup(POSITION, 9999);
 
-        assertTrue(Files.readString(journal).contains("Skill Level value 20"));
+        assertTrue(Files.readString(journal).contains("UCI_Elo value 3190"));
     }
 
     @Test

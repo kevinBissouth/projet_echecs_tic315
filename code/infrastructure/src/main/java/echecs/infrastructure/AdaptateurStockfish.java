@@ -23,8 +23,10 @@ import java.util.concurrent.TimeoutException;
  * is held between two moves, which matters on a small server.
  */
 public class AdaptateurStockfish implements MoteurEchecs {
-    private static final int FORCE_MINIMUM = 0;
-    private static final int FORCE_MAXIMUM = 20;
+    // The site's scale starts at 100; Stockfish cannot play below 1320, so one scale is spread over the other.
+    private static final int FORCE_MINIMUM = 100;
+    private static final int FORCE_MAXIMUM = 3190;
+    private static final int ELO_MINIMUM_DU_MOTEUR = 1320;
     private static final int MEMOIRE_MO = 16;
     private static final String AUCUN_COUP = "(none)";
     private static final String PREFIXE_COUP = "bestmove ";
@@ -76,7 +78,8 @@ public class AdaptateurStockfish implements MoteurEchecs {
         BufferedWriter entree = new BufferedWriter(new OutputStreamWriter(processus.getOutputStream(), StandardCharsets.US_ASCII));
         BufferedReader sortie = new BufferedReader(new InputStreamReader(processus.getInputStream(), StandardCharsets.US_ASCII));
         envoyerCommande(entree, "setoption name Hash value " + MEMOIRE_MO);
-        envoyerCommande(entree, "setoption name Skill Level value " + borner(force));
+        envoyerCommande(entree, "setoption name UCI_LimitStrength value true");
+        envoyerCommande(entree, "setoption name UCI_Elo value " + eloDuMoteur(force));
         envoyerCommande(entree, "position fen " + position);
         envoyerCommande(entree, "go movetime " + tempsDeReflexion.toMillis());
         return lireMeilleurCoup(sortie);
@@ -102,7 +105,9 @@ public class AdaptateurStockfish implements MoteurEchecs {
         throw new IOException("réponse interrompue");
     }
 
-    private static int borner(int force) {
-        return Math.clamp(force, FORCE_MINIMUM, FORCE_MAXIMUM);
+    private static int eloDuMoteur(int force) {
+        int bornee = Math.clamp(force, FORCE_MINIMUM, FORCE_MAXIMUM);
+        return ELO_MINIMUM_DU_MOTEUR
+                + (bornee - FORCE_MINIMUM) * (FORCE_MAXIMUM - ELO_MINIMUM_DU_MOTEUR) / (FORCE_MAXIMUM - FORCE_MINIMUM);
     }
 }
