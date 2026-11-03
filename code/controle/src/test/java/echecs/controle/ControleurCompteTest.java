@@ -24,6 +24,8 @@ import org.junit.jupiter.api.Test;
 
 class ControleurCompteTest {
     private static final String JETON_VALIDE = "jeton-alice";
+    private static final String MOT_DE_PASSE = "un-long-secret";
+    private static final String TROP_LONG = "x".repeat(73);
     private static final Cadence RAPIDE = new Cadence(Duration.ofMinutes(10), Duration.ofSeconds(5), CategorieCadence.RAPIDE);
 
     private final ServiceAuthentification authentification = jeton -> {
@@ -32,10 +34,21 @@ class ControleurCompteTest {
         }
         return "alice@exemple.com";
     };
+    private final ServiceMotsDePasse motsDePasse = new ServiceMotsDePasse() {
+        @Override
+        public String hacher(String motDePasse) {
+            return "empreinte:" + motDePasse;
+        }
+
+        @Override
+        public boolean correspond(String motDePasse, String empreinte) {
+            return empreinte.equals(hacher(motDePasse));
+        }
+    };
     private final DepotsEnMemoire.Joueurs depotJoueurs = new DepotsEnMemoire.Joueurs();
     private final DepotsEnMemoire.Parties depotParties = new DepotsEnMemoire.Parties();
     private final FilesDeParties files = new FilesDeParties();
-    private final ControleurCompte controleur = new ControleurCompte(authentification, depotJoueurs, depotParties, files);
+    private final ControleurCompte controleur = new ControleurCompte(authentification, motsDePasse, depotJoueurs, depotParties, files);
     private final Joueur administrateur = Joueur.administrateur("admin", "admin@exemple.com");
 
     private ControleurPartie controleurPartie(Joueur joueur) {
@@ -45,7 +58,7 @@ class ControleurCompteTest {
 
     @Test
     void creerUnCompteLEnregistre() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
 
         assertEquals(List.of(alice), controleur.consulterComptes(administrateur));
         assertTrue(alice.peutJouer());
@@ -53,40 +66,96 @@ class ControleurCompteTest {
 
     @Test
     void unPseudoDejaPrisEstRefuse_RG12() {
-        controleur.creerCompte("alice", "alice@exemple.com");
+        controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
 
-        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("alice", "autre@exemple.com"));
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("alice", "autre@exemple.com", MOT_DE_PASSE));
     }
 
     @Test
     void uneAdresseDejaPriseEstRefusee_RG12() {
-        controleur.creerCompte("alice", "alice@exemple.com");
+        controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
 
-        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("autre", "alice@exemple.com"));
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("autre", "alice@exemple.com", MOT_DE_PASSE));
     }
 
     @Test
-    void seConnecterRetrouveLeJoueurDeCetteIdentite() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+    void leMotDePasseNEstJamaisEnregistreEnClair() {
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
 
-        assertEquals(alice, controleur.seConnecter(JETON_VALIDE));
+        assertEquals(motsDePasse.hacher(MOT_DE_PASSE), depotJoueurs.empreinteDe(alice).orElseThrow());
+    }
+
+    @Test
+    void onSeConnecteAvecSonPseudoOuSonEmail() {
+        Joueur alice = controleur.creerCompte("alice", "Alice@Exemple.com", MOT_DE_PASSE);
+
+        assertEquals(alice, controleur.seConnecter("alice", MOT_DE_PASSE));
+        assertEquals(alice, controleur.seConnecter("ALICE", MOT_DE_PASSE));
+        assertEquals(alice, controleur.seConnecter("alice@exemple.com", MOT_DE_PASSE));
+    }
+
+    @Test
+    void unMauvaisMotDePasseEtUnCompteInconnuDonnentLeMemeRefus() {
+        controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
+
+        String mauvais = assertThrows(ConnexionRefuseeException.class, () -> controleur.seConnecter("alice", "mauvais-secret")).getMessage();
+        String inconnu = assertThrows(ConnexionRefuseeException.class, () -> controleur.seConnecter("personne", MOT_DE_PASSE)).getMessage();
+
+        assertEquals(mauvais, inconnu);
+    }
+
+    @Test
+    void uneConnexionIncompleteEstRefusee() {
+        assertThrows(ConnexionRefuseeException.class, () -> controleur.seConnecter(null, MOT_DE_PASSE));
+        assertThrows(ConnexionRefuseeException.class, () -> controleur.seConnecter("alice", null));
+    }
+
+    @Test
+    void unCompteInvalideEstRefuse() {
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("a", "alice@exemple.com", MOT_DE_PASSE));
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("<script>", "alice@exemple.com", MOT_DE_PASSE));
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("alice", "pas-un-email", MOT_DE_PASSE));
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("alice", "alice@exemple.com", "court"));
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("alice", "alice@exemple.com", TROP_LONG));
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte(null, null, null));
+    }
+
+    @Test
+    void lePseudoEstUniqueSansTenirCompteDesMajuscules_RG12() {
+        controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
+
+        assertThrows(CompteRefuseException.class, () -> controleur.creerCompte("ALICE", "autre@exemple.com", MOT_DE_PASSE));
+    }
+
+    @Test
+    void uneIdentiteConnueSeConnecteDirectement() {
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
+
+        assertEquals(Optional.of(alice), controleur.seConnecterAvecIdentite(JETON_VALIDE));
+    }
+
+    @Test
+    void uneIdentiteSansCompteEstUnPremierPassage() {
+        assertEquals(Optional.empty(), controleur.seConnecterAvecIdentite(JETON_VALIDE));
     }
 
     @Test
     void unJetonInvalideEstRefuse() {
-        controleur.creerCompte("alice", "alice@exemple.com");
-
-        assertThrows(ConnexionRefuseeException.class, () -> controleur.seConnecter("faux"));
+        assertThrows(ConnexionRefuseeException.class, () -> controleur.seConnecterAvecIdentite("faux"));
+        assertThrows(ConnexionRefuseeException.class, () -> controleur.creerCompteAvecIdentite("faux", "alice", MOT_DE_PASSE));
     }
 
     @Test
-    void uneIdentiteSansCompteEstRefusee_BF2() {
-        assertThrows(ConnexionRefuseeException.class, () -> controleur.seConnecter(JETON_VALIDE));
+    void lePremierPassagePrendLEmailDuJeton() {
+        Joueur alice = controleur.creerCompteAvecIdentite(JETON_VALIDE, "alice", MOT_DE_PASSE);
+
+        assertEquals("alice@exemple.com", alice.email());
+        assertEquals(alice, controleur.seConnecter("alice", MOT_DE_PASSE));
     }
 
     @Test
     void lesClassementsCouvrentLesTroisFamilles_RG6() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
 
         Map<CategorieCadence, Classement> classements = controleur.consulterClassements(alice);
 
@@ -96,7 +165,7 @@ class ControleurCompteTest {
 
     @Test
     void suspendreConserveLeCompte_RG14() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
 
         controleur.suspendre(administrateur, alice);
 
@@ -106,7 +175,7 @@ class ControleurCompteTest {
 
     @Test
     void suspendreUnCreateurAnnuleSaPartieEnAttente_RG8() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
         PartieEntreJoueurs partie = controleurPartie(alice).creerPartie(RAPIDE, Couleur.BLANC, null);
 
         controleur.suspendre(administrateur, alice);
@@ -117,8 +186,8 @@ class ControleurCompteTest {
 
     @Test
     void suspendreUnJoueurEnPartieLuiFaitAbandonner_RG8() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
-        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
+        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com", MOT_DE_PASSE);
         PartieEntreJoueurs partie = controleurPartie(alice).creerPartie(RAPIDE, Couleur.BLANC, null);
         controleurPartie(bob).rejoindrePartie(partie);
 
@@ -130,7 +199,7 @@ class ControleurCompteTest {
 
     @Test
     void reactiverRendLeCompteJouable_RG8() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
         controleur.suspendre(administrateur, alice);
 
         controleur.reactiver(administrateur, alice);
@@ -140,8 +209,8 @@ class ControleurCompteTest {
 
     @Test
     void unJoueurOrdinaireNePeutPasGererLesComptes_RG17() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
-        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
+        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com", MOT_DE_PASSE);
 
         assertThrows(AccesRefuseException.class, () -> controleur.consulterComptes(alice));
         assertThrows(AccesRefuseException.class, () -> controleur.suspendre(alice, bob));
@@ -161,7 +230,7 @@ class ControleurCompteTest {
 
     @Test
     void unCompteCreeSurLeSiteNEstJamaisAdministrateur_RG17() {
-        assertFalse(controleur.creerCompte("alice", "alice@exemple.com").estAdministrateur());
+        assertFalse(controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE).estAdministrateur());
     }
 
     @Test
@@ -176,7 +245,7 @@ class ControleurCompteTest {
 
     @Test
     void unAdministrateurPeutEnNommerUnAutre_RG17() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
         int avant = depotJoueurs.enregistrements;
 
         controleur.nommerAdministrateur(administrateur, alice);
@@ -188,8 +257,8 @@ class ControleurCompteTest {
 
     @Test
     void unJoueurOrdinaireNePeutNommerPersonne_RG17() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
-        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
+        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com", MOT_DE_PASSE);
 
         assertThrows(AccesRefuseException.class, () -> controleur.nommerAdministrateur(alice, bob));
         assertThrows(AccesRefuseException.class, () -> controleur.nommerAdministrateur(alice, alice));
@@ -199,7 +268,7 @@ class ControleurCompteTest {
 
     @Test
     void unJoueurEnPartieNePeutPasEtreNomme_RG17() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
         controleurPartie(alice).creerPartie(RAPIDE, Couleur.BLANC, null);
 
         assertThrows(AccesRefuseException.class, () -> controleur.nommerAdministrateur(administrateur, alice));
@@ -208,7 +277,7 @@ class ControleurCompteTest {
 
     @Test
     void lesChangementsDeCompteSontEnregistres() {
-        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com");
+        Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
         int avant = depotJoueurs.enregistrements;
 
         controleur.suspendre(administrateur, alice);

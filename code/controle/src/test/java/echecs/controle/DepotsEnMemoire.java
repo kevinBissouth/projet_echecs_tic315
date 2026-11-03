@@ -8,8 +8,10 @@ import echecs.metier.partie.PartieEntreJoueurs;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /** Fake repositories for the tests, kept in memory. */
@@ -19,7 +21,24 @@ final class DepotsEnMemoire {
 
     static final class Joueurs implements DepotJoueurs {
         final List<Joueur> joueurs = new CopyOnWriteArrayList<>();
+        private final Map<Joueur, String> empreintes = new ConcurrentHashMap<>();
         int enregistrements = 0;
+
+        @Override
+        public void creer(Joueur joueur, String empreinteMotDePasse) {
+            empreintes.put(joueur, empreinteMotDePasse);
+            enregistrer(joueur);
+        }
+
+        @Override
+        public Optional<Joueur> trouverParPseudo(String pseudo) {
+            return joueurs.stream().filter(joueur -> joueur.pseudo().equalsIgnoreCase(pseudo)).findFirst();
+        }
+
+        @Override
+        public Optional<String> empreinteDe(Joueur joueur) {
+            return Optional.ofNullable(empreintes.get(joueur));
+        }
 
         @Override
         public void enregistrer(Joueur joueur) {
@@ -36,7 +55,7 @@ final class DepotsEnMemoire {
 
         @Override
         public boolean pseudoExiste(String pseudo) {
-            return joueurs.stream().anyMatch(joueur -> joueur.pseudo().equals(pseudo));
+            return joueurs.stream().anyMatch(joueur -> joueur.pseudo().equalsIgnoreCase(pseudo));
         }
 
         @Override
