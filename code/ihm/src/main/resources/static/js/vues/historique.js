@@ -1,57 +1,90 @@
 import { html, afficher } from "../html.js";
-import { Echiquier, lirePosition, appliquerDeplacements, miniature } from "../echiquier.js";
+import { api } from "../api.js";
+import { Echiquier, lirePosition, miniature } from "../echiquier.js";
 import { icone, iconeFamille, libelleCadence } from "../icones.js";
-import { classements, joueurConnecte, partieOpera, partiesTerminees, POSITION_INITIALE, profil } from "../exemple.js";
+import { POSITION_INITIALE } from "../donnees.js";
+import { session } from "../session.js";
 
-const FILTRES = ["Toutes", "Bullet", "Blitz", "Rapide", "Ordinateur"];
+export const NOMS_FAMILLES = { BULLET: "Bullet", BLITZ: "Blitz", RAPIDE: "Rapide" };
+const FAMILLE_ORDINATEUR = "Ordinateur";
+const FILTRES = ["Toutes", "Bullet", "Blitz", "Rapide", FAMILLE_ORDINATEUR];
+const NOM_ORDINATEUR = "Ordinateur";
 const LARGEUR_COURBE = 600;
 const HAUTEUR_COURBE = 180;
 const MARGE_COURBE = 12;
 
+const SCORES = { VICTOIRE_BLANCS: ["1", "0"], VICTOIRE_NOIRS: ["0", "1"], NULLE: ["½", "½"] };
+const MOTIFS = {
+  MAT: "mat",
+  PAT: "pat",
+  ABANDON: "abandon",
+  TEMPS_ECOULE: "temps écoulé",
+  ACCORD: "accord",
+  TRIPLE_REPETITION: "triple répétition",
+  CINQUANTE_COUPS: "règle des 50 coups",
+  MATERIEL_INSUFFISANT: "matériel insuffisant",
+};
+const FORMAT_DATE = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+
+const familleDe = (partie) => NOMS_FAMILLES[partie.categorie] ?? FAMILLE_ORDINATEUR;
+const placement = (position) => position.split(" ")[0];
+const nomDuCamp = (camp) => camp.pseudo ?? NOM_ORDINATEUR;
+
 function issue(partie) {
-  if (partie.resultat === "½-½") return "nulle";
-  const gagnant = partie.resultat === "1-0" ? partie.blancs : partie.noirs;
-  return gagnant.pseudo === joueurConnecte.pseudo ? "gagnee" : "perdue";
+  if (partie.resultat === "NULLE") return "nulle";
+  const gagnant = partie.resultat === "VICTOIRE_BLANCS" ? partie.blancs : partie.noirs;
+  return gagnant.pseudo === session.joueur.pseudo ? "gagnee" : "perdue";
 }
 
 const SIGNES = { gagnee: "+", perdue: "−", nulle: "=" };
 const NOMS_ISSUES = { gagnee: "Partie gagnée", perdue: "Partie perdue", nulle: "Partie nulle" };
 
-const ligneJoueur = (joueur, couleur) => html`
-  <span class="joueur-ligne">
-    <span class="carre-couleur ${couleur}" aria-hidden="true"></span>
-    <strong>${joueur.pseudo}</strong>
-    ${joueur.classement && html`<span class="discret">(${joueur.classement})</span>`}
-    ${joueur.variation && html`<span class="${joueur.variation.startsWith("+") ? "variation-plus" : "variation-moins"}">${joueur.variation}</span>`}
-  </span>`;
+function texteVariation(variation) {
+  if (variation === null || variation === undefined) return "";
+  return variation > 0 ? `+${variation}` : `${variation}`.replace("-", "−");
+}
+
+const ligneJoueur = (camp, force, couleur) => {
+  const classement = camp.classementApres ?? (camp.pseudo ? null : force);
+  return html`
+    <span class="joueur-ligne">
+      <span class="carre-couleur ${couleur}" aria-hidden="true"></span>
+      <strong>${nomDuCamp(camp)}</strong>
+      ${classement && html`<span class="discret">(${classement})</span>`}
+      ${camp.variation !== null && html`<span class="${camp.variation >= 0 ? "variation-plus" : "variation-moins"}">${texteVariation(camp.variation)}</span>`}
+    </span>`;
+};
 
 export const lignePartie = (partie) => {
   const fin = issue(partie);
-  const [scoreBlancs, scoreNoirs] = partie.resultat.split("-");
+  const [scoreBlancs, scoreNoirs] = SCORES[partie.resultat];
+  const famille = familleDe(partie);
   return html`
     <li>
       <a class="ligne-partie" href="#/parties/${partie.id}">
-        ${miniature(partie.position)}
+        ${miniature(placement(partie.positionFinale))}
         <div class="ligne-cadence">
-          ${iconeFamille(partie.famille)}
+          ${iconeFamille(famille)}
           <span>${partie.cadence ? libelleCadence(partie.cadence) : "Sans pendule"}</span>
         </div>
         <div class="ligne-joueurs">
-          ${ligneJoueur(partie.blancs, "blanc")}
-          ${ligneJoueur(partie.noirs, "noir")}
-          <p class="discret">${partie.coups} coups, ${partie.motif.toLowerCase()}</p>
+          ${ligneJoueur(partie.blancs, partie.forceOrdinateur, "blanc")}
+          ${ligneJoueur(partie.noirs, partie.forceOrdinateur, "noir")}
+          <p class="discret">${partie.nombreCoups} coups, ${MOTIFS[partie.motif]}</p>
         </div>
         <div class="ligne-resultat">
           <span class="score"><span>${scoreBlancs}</span><span>${scoreNoirs}</span></span>
           <span class="badge-issue ${fin}" title="${NOMS_ISSUES[fin]}"><span class="visuellement-masque">${NOMS_ISSUES[fin]}</span><span aria-hidden="true">${SIGNES[fin]}</span></span>
         </div>
-        <time class="ligne-date discret">${partie.date}</time>
+        <time class="ligne-date discret">${FORMAT_DATE.format(new Date(partie.termineeLe))}</time>
       </a>
     </li>`;
 };
 
-export function vueParties(contenu, { parametres }) {
-  const parties = parametres.get("etat") === "vide" ? [] : partiesTerminees;
+const erreurDeChargement = () => html`<div class="vide vide-cadre"><p>Le serveur n'a pas répondu.</p><p>Rechargez la page pour réessayer.</p></div>`;
+
+export function vueParties(contenu) {
+  let actif = true;
   afficher(contenu, html`
     <section class="page page-large">
       <h1 class="titre-page">${icone("parties")} Mes parties</h1>
@@ -68,8 +101,9 @@ export function vueParties(contenu, { parametres }) {
 
   const emplacement = contenu.querySelector("#liste-parties");
   const compte = contenu.querySelector("#compte-parties");
+  let parties = [];
   const dessiner = (filtre) => {
-    const visibles = filtre === FILTRES[0] ? parties : parties.filter(({ famille }) => famille === filtre);
+    const visibles = filtre === FILTRES[0] ? parties : parties.filter((partie) => familleDe(partie) === filtre);
     compte.textContent = `${visibles.length} ${visibles.length > 1 ? "parties" : "partie"}`;
     afficher(emplacement, visibles.length === 0
       ? html`<div class="vide vide-cadre">
@@ -84,11 +118,19 @@ export function vueParties(contenu, { parametres }) {
       dessiner(bouton.dataset.filtre);
     });
   });
-  dessiner(FILTRES[0]);
+  api.mesParties().then((reponse) => {
+    if (!actif) return;
+    parties = reponse;
+    dessiner(FILTRES[0]);
+  }).catch(() => afficher(emplacement, erreurDeChargement()));
+  return () => { actif = false; };
 }
 
 /** La courbe du classement : chaque point est le classement après une partie. */
 function courbe(evolution) {
+  if (evolution.length < 2) {
+    return html`<div class="vide"><p>Pas encore de courbe.</p><p>Elle se dessinera après votre première partie classée.</p></div>`;
+  }
   const minimum = Math.min(...evolution);
   const maximum = Math.max(...evolution);
   const etendue = Math.max(maximum - minimum, 1);
@@ -99,95 +141,117 @@ function courbe(evolution) {
     <div class="courbe">
       <div class="courbe-echelle discret" aria-hidden="true"><span>${maximum}</span><span>${minimum}</span></div>
       <svg viewBox="0 0 ${LARGEUR_COURBE} ${HAUTEUR_COURBE}" preserveAspectRatio="none" role="img"
-           aria-label="Classement sur les ${evolution.length} dernières parties : de ${evolution[0]} à ${evolution.at(-1)}">
+           aria-label="Classement sur les ${evolution.length} derniers relevés : de ${evolution[0]} à ${evolution.at(-1)}">
         <polyline points="${trace}" vector-effect="non-scaling-stroke"></polyline>
       </svg>
     </div>`;
 }
 
-const detailFamille = (classement) => {
-  const total = classement.victoires + classement.nulles + classement.defaites;
-  const part = (nombre) => `${(nombre * 100) / total}%`;
+const totalDe = ({ victoires, nulles, defaites }) => victoires + nulles + defaites;
+
+const detailFamille = (bilan) => {
+  const total = totalDe(bilan);
+  const part = (nombre) => `${total === 0 ? 0 : (nombre * 100) / total}%`;
+  const famille = NOMS_FAMILLES[bilan.categorie];
   return html`
     <div class="detail-famille">
       <div>
-        <h2 class="section-titre">Évolution en ${classement.famille.toLowerCase()}</h2>
-        ${courbe(classement.evolution)}
+        <h2 class="section-titre">Évolution en ${famille.toLowerCase()}</h2>
+        ${courbe(bilan.evolution)}
       </div>
       <div>
         <h2 class="section-titre">Bilan</h2>
         <dl class="bilan-famille">
-          <div><dt>Classement actuel</dt><dd>${classement.points}</dd></div>
-          <div><dt>Meilleur classement</dt><dd>${classement.meilleur}</dd></div>
+          <div><dt>Classement actuel</dt><dd>${session.joueur.classements[bilan.categorie]}</dd></div>
+          <div><dt>Meilleur classement</dt><dd>${bilan.meilleurClassement}</dd></div>
           <div><dt>Parties jouées</dt><dd>${total}</dd></div>
         </dl>
-        <div class="barre-bilan" role="img" aria-label="${classement.victoires} victoires, ${classement.nulles} nulles, ${classement.defaites} défaites">
-          <span class="gagnee" style="width:${part(classement.victoires)}"></span>
-          <span class="nulle" style="width:${part(classement.nulles)}"></span>
-          <span class="perdue" style="width:${part(classement.defaites)}"></span>
-        </div>
+        ${total > 0 && html`<div class="barre-bilan" role="img" aria-label="${bilan.victoires} victoires, ${bilan.nulles} nulles, ${bilan.defaites} défaites">
+          <span class="gagnee" style="width:${part(bilan.victoires)}"></span>
+          <span class="nulle" style="width:${part(bilan.nulles)}"></span>
+          <span class="perdue" style="width:${part(bilan.defaites)}"></span>
+        </div>`}
       </div>
     </div>`;
 };
 
 export function vueClassements(contenu) {
-  const total = classements.reduce((somme, { victoires, nulles, defaites }) => somme + victoires + nulles + defaites, 0);
-  afficher(contenu, html`
-    <section class="page page-large">
+  let actif = true;
+  afficher(contenu, html`<section class="page page-large"><div id="classements"></div></section>`);
+  const zone = contenu.querySelector("#classements");
+  api.bilans().then((bilans) => {
+    if (!actif) return;
+    const total = bilans.reduce((somme, bilan) => somme + totalDe(bilan), 0);
+    afficher(zone, html`
       <header class="profil">
-        <span class="avatar avatar-grand" aria-hidden="true">${joueurConnecte.pseudo[0].toUpperCase()}</span>
+        <span class="avatar avatar-grand" aria-hidden="true">${session.joueur.pseudo[0].toUpperCase()}</span>
         <div>
-          <h1>${joueurConnecte.pseudo}</h1>
-          <p class="discret">Membre depuis le ${profil.depuis}, ${total} parties classées</p>
+          <h1>${session.joueur.pseudo}</h1>
+          <p class="discret">${total} ${total > 1 ? "parties classées" : "partie classée"}</p>
         </div>
       </header>
       <div class="cadre">
         <table class="tableau tableau-cadre tableau-classements">
           <thead><tr><th>Cadence</th><th>Classement</th><th>Parties</th><th>Victoires</th><th>Nulles</th><th>Défaites</th></tr></thead>
           <tbody>
-            ${classements.map((classement, indice) => html`
-              <tr data-famille="${indice}" class="${indice === 1 ? "selectionnee" : ""}">
-                <td><button class="bouton-ligne" type="button" aria-pressed="${indice === 1}">${iconeFamille(classement.famille)} ${classement.famille}</button></td>
-                <td data-etiquette="Classement" class="chiffre-fort">${classement.points}</td>
-                <td data-etiquette="Parties">${classement.victoires + classement.nulles + classement.defaites}</td>
-                <td data-etiquette="Victoires">${classement.victoires}</td>
-                <td data-etiquette="Nulles">${classement.nulles}</td>
-                <td data-etiquette="Défaites">${classement.defaites}</td>
+            ${bilans.map((bilan, indice) => html`
+              <tr data-famille="${indice}">
+                <td><button class="bouton-ligne" type="button" aria-pressed="false">${iconeFamille(NOMS_FAMILLES[bilan.categorie])} ${NOMS_FAMILLES[bilan.categorie]}</button></td>
+                <td data-etiquette="Classement" class="chiffre-fort">${session.joueur.classements[bilan.categorie]}</td>
+                <td data-etiquette="Parties">${totalDe(bilan)}</td>
+                <td data-etiquette="Victoires">${bilan.victoires}</td>
+                <td data-etiquette="Nulles">${bilan.nulles}</td>
+                <td data-etiquette="Défaites">${bilan.defaites}</td>
               </tr>`)}
           </tbody>
         </table>
         <div id="detail"></div>
-      </div>
-    </section>`);
-
-  const detail = contenu.querySelector("#detail");
-  const choisir = (indice) => {
-    afficher(detail, detailFamille(classements[indice]));
-    contenu.querySelectorAll("[data-famille]").forEach((ligne) => {
-      const choisie = Number(ligne.dataset.famille) === indice;
-      ligne.classList.toggle("selectionnee", choisie);
-      ligne.querySelector("button").setAttribute("aria-pressed", String(choisie));
+      </div>`);
+    const detail = zone.querySelector("#detail");
+    const choisir = (indice) => {
+      afficher(detail, detailFamille(bilans[indice]));
+      zone.querySelectorAll("[data-famille]").forEach((ligne) => {
+        const choisie = Number(ligne.dataset.famille) === indice;
+        ligne.classList.toggle("selectionnee", choisie);
+        ligne.querySelector("button").setAttribute("aria-pressed", String(choisie));
+      });
+    };
+    zone.querySelectorAll("[data-famille]").forEach((ligne) => {
+      ligne.addEventListener("click", () => choisir(Number(ligne.dataset.famille)));
     });
-  };
-  contenu.querySelectorAll("[data-famille]").forEach((ligne) => {
-    ligne.addEventListener("click", () => choisir(Number(ligne.dataset.famille)));
-  });
-  choisir(1);
+    // La famille la plus jouée s'ouvre d'abord : c'est celle qui a le plus à montrer.
+    const plusJouee = bilans.reduce((meilleur, bilan, indice) => (totalDe(bilan) > totalDe(bilans[meilleur]) ? indice : meilleur), 0);
+    choisir(plusJouee);
+  }).catch(() => afficher(zone, erreurDeChargement()));
+  return () => { actif = false; };
 }
 
-export function vueRevoir(contenu) {
-  const partie = partieOpera;
-  const positions = [lirePosition(POSITION_INITIALE)];
-  for (const coup of partie.coups) {
-    positions.push(appliquerDeplacements(positions.at(-1), coup.deplacements));
-  }
+export function vueRevoir(contenu, { chemin, aller }) {
+  const id = chemin.split("/").at(-1);
+  let actif = true;
+  let retirerClavier = () => {};
+  api.partieArchivee(id).then((partie) => {
+    if (!actif) return;
+    retirerClavier = dessinerRelecture(contenu, partie);
+  }).catch(() => aller("#/parties"));
+  return () => {
+    actif = false;
+    retirerClavier();
+  };
+}
+
+function dessinerRelecture(contenu, partie) {
+  const positions = [lirePosition(POSITION_INITIALE), ...partie.coups.map((coup) => lirePosition(placement(coup.positionApres)))];
   let courant = positions.length - 1;
+  const titre = `${nomDuCamp(partie.blancs)} contre ${nomDuCamp(partie.noirs)}`;
+  const [scoreBlancs, scoreNoirs] = SCORES[partie.resultat];
+  const sousTitre = `${scoreBlancs}-${scoreNoirs}, ${MOTIFS[partie.motif]}, ${FORMAT_DATE.format(new Date(partie.termineeLe))}`;
 
   afficher(contenu, html`
     <section class="partie relecture">
       <header class="entete-relecture" style="grid-area:adversaire">
-        <h1>${partie.titre}</h1>
-        <p class="discret">${partie.sousTitre}</p>
+        <h1>${titre}</h1>
+        <p class="discret">${sousTitre}</p>
       </header>
       <div class="plateau" id="plateau"></div>
       <div class="panneau-actions" style="grid-area:joueur">
@@ -207,7 +271,8 @@ export function vueRevoir(contenu) {
       </div>
     </section>`);
 
-  const echiquier = new Echiquier(contenu.querySelector("#plateau"));
+  const orientation = partie.noirs.pseudo === session.joueur.pseudo ? "noir" : "blanc";
+  const echiquier = new Echiquier(contenu.querySelector("#plateau"), { orientation });
   const elementCoups = contenu.querySelector("#coups");
 
   const lignes = [];
@@ -229,8 +294,8 @@ export function vueRevoir(contenu) {
 
   const aller = (cible, animer = false) => {
     courant = Math.min(Math.max(cible, 0), positions.length - 1);
-    const dernierCoup = courant > 0 ? partie.coups[courant - 1].deplacements[0] : null;
-    echiquier.afficherPosition(positions[courant], { dernierCoup, animer });
+    const coup = courant > 0 ? partie.coups[courant - 1] : null;
+    echiquier.afficherPosition(positions[courant], { dernierCoup: coup && [coup.depart, coup.arrivee], animer });
     elementCoups.querySelectorAll(".coup").forEach((bouton) => {
       const estCourant = Number(bouton.dataset.coup) === courant;
       bouton.classList.toggle("courant", estCourant);

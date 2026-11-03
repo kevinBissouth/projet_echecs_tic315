@@ -3,7 +3,7 @@ import { Echiquier, lirePosition, appliquerDeplacements } from "../echiquier.js"
 import { LOGO_GOOGLE } from "../icones.js";
 import { URL_CONNEXION_GOOGLE } from "../api.js";
 import { session } from "../session.js";
-import { partieOpera, POSITION_INITIALE } from "../exemple.js";
+import { partieOpera, POSITION_INITIALE } from "../donnees.js";
 
 const INTERVALLE_RELECTURE_MS = 2400;
 const PAUSE_FIN_DE_PARTIE_MS = 7000;

@@ -2,6 +2,7 @@ import { html, afficher } from "./html.js";
 import { icone } from "./icones.js";
 import { ouvrirPlus } from "./plus.js";
 import { session, actualiserSession, fermerSession } from "./session.js";
+import { ouvrirLigne, fermerLigne, ecouter } from "./temps-reel.js";
 import { vueAccueil } from "./vues/accueil.js";
 import { vueConnexion, vueInscription } from "./vues/authentification.js";
 import { vueSalon } from "./vues/salon.js";
@@ -32,8 +33,9 @@ const ROUTES = [
   { motif: /^#\/administration$/, vue: vueAdministration, nom: "Gestion des comptes" },
 ];
 
+// Un administrateur ne joue pas (RG17) : il ne voit que ce qu'il peut faire.
 function liensDe(joueur) {
-  return joueur.administrateur ? [...LIENS, LIEN_ADMINISTRATION] : LIENS;
+  return joueur.administrateur ? [LIEN_ADMINISTRATION] : LIENS;
 }
 
 const estCourant = (cible, chemin) => (chemin === cible || chemin.startsWith(`${cible}/`) ? html`aria-current="page"` : "");
@@ -63,7 +65,7 @@ function afficherNavigation(route, chemin) {
       ${route.plein && html`<button class="plus-entete" type="button" data-plus aria-label="Plus">${icone("plus")}</button>`}
     </div>`);
   // Pendant une partie, l'échiquier a besoin de toute la hauteur de l'écran.
-  afficher(onglets, route.plein ? html`` : html`${LIENS.map(lienNavigation(chemin))}${boutonPlus}`);
+  afficher(onglets, route.plein ? html`` : html`${liens.map(lienNavigation(chemin))}${boutonPlus}`);
 }
 
 let nettoyer = null;
@@ -82,11 +84,14 @@ function naviguer() {
     location.hash = "#/connexion";
     return;
   }
-  if (session.joueur && pagePublique) {
-    location.hash = "#/salon";
+  const accueilDuJoueur = session.joueur?.administrateur ? "#/administration" : "#/salon";
+  if (session.joueur && (pagePublique || (session.joueur.administrateur && chemin !== "#/administration"))) {
+    location.hash = accueilDuJoueur;
     return;
   }
   nettoyer?.();
+  if (session.joueur) ouvrirLigne();
+  else fermerLigne();
   // Une vue peut avoir posé des écouteurs sur le conteneur : on repart d'un élément neuf.
   const neuf = contenu.cloneNode(false);
   contenu.replaceWith(neuf);
@@ -97,6 +102,7 @@ function naviguer() {
   const parametres = new URLSearchParams(requete);
   nettoyer = route.vue(neuf, {
     parametres,
+    chemin,
     aller: (cible) => { location.hash = cible; },
   });
   scrollTo(0, 0);
@@ -104,11 +110,17 @@ function naviguer() {
 }
 
 addEventListener("click", async (evenement) => {
-  if (evenement.target.closest("[data-plus]")) ouvrirPlus(session.joueur, location.hash || "#/");
+  if (evenement.target.closest("[data-plus]")) ouvrirPlus(session.joueur);
   if (evenement.target.closest("[data-deconnexion]")) {
     await fermerSession();
     location.hash = "#/";
     naviguer();
+  }
+});
+// Le joueur qui attendait un adversaire rejoint l'échiquier dès que quelqu'un arrive.
+ecouter((partie) => {
+  if (partie.etat === "EN_COURS" && partie.coups.length === 0 && location.hash !== "#/partie") {
+    location.hash = "#/partie";
   }
 });
 addEventListener("hashchange", naviguer);

@@ -1,26 +1,52 @@
 import { html, afficher, ouvrirDialogue } from "../html.js";
+import { api, ErreurApi } from "../api.js";
 import { Echiquier, lirePosition, imagePiece } from "../echiquier.js";
-import { partieEnCours } from "../exemple.js";
+import { actualiserSession } from "../session.js";
+import { ecouter } from "../temps-reel.js";
 
+const MILLISECONDES_PAR_SECONDE = 1000;
 const SECONDES_PAR_MINUTE = 60;
-const SEUIL_TEMPS_BAS_S = 20;
-const SECONDE_MS = 1000;
-const DELAI_REPONSE_ADVERSAIRE_MS = 1400;
-const PIECES_PROMOTION = ["Q", "R", "B", "N"];
-const NOMS_PROMOTION = { Q: "Dame", R: "Tour", B: "Fou", N: "Cavalier" };
+const SEUIL_TEMPS_BAS_MS = 20 * MILLISECONDES_PAR_SECONDE;
+const INTERVALLE_PENDULE_MS = 200;
+const RANGEE_DE_PROMOTION = { BLANC: "8", NOIR: "1" };
+const PROMOTIONS = [
+  { lettre: "q", type: "DAME", nom: "Dame" },
+  { lettre: "r", type: "TOUR", nom: "Tour" },
+  { lettre: "b", type: "FOU", nom: "Fou" },
+  { lettre: "n", type: "CAVALIER", nom: "Cavalier" },
+];
+const MOTIFS = {
+  MAT: "Échec et mat.",
+  PAT: "Pat : le joueur au trait n'a plus de coup légal.",
+  ABANDON: "Partie terminée par abandon.",
+  TEMPS_ECOULE: "Temps écoulé.",
+  ACCORD: "Nulle par accord.",
+  TRIPLE_REPETITION: "Nulle par triple répétition.",
+  CINQUANTE_COUPS: "Nulle par la règle des 50 coups.",
+  MATERIEL_INSUFFISANT: "Nulle : matériel insuffisant pour mater.",
+};
+const TITRES = { gagnee: "Vous avez gagné", perdue: "Vous avez perdu", nulle: "Partie nulle", annulee: "Partie annulée" };
 
-function formaterTemps(secondes) {
+function formaterTemps(millisecondes) {
+  const secondes = Math.ceil(Math.max(millisecondes, 0) / MILLISECONDES_PAR_SECONDE);
   const minutes = Math.floor(secondes / SECONDES_PAR_MINUTE);
   return `${minutes}:${String(secondes % SECONDES_PAR_MINUTE).padStart(2, "0")}`;
 }
 
-const bandeJoueur = (classe, joueur, pendule) => html`
+const nomDe = (camp) => camp?.pseudo ?? "En attente d'un adversaire";
+
+const detailDe = (camp, partie) => {
+  if (!camp?.classement) return null;
+  return partie.contreOrdinateur && camp === partie.adversaire ? `${camp.classement} Elo` : camp.classement;
+};
+
+const bandeJoueur = (classe, camp, partie) => html`
   <div class="bande ${classe}">
     <div class="bande-identite">
-      <strong>${joueur.pseudo}</strong>
-      ${joueur.classement && html`<small>${joueur.classement}</small>`}
+      <strong>${nomDe(camp)}</strong>
+      ${detailDe(camp, partie) && html`<small>${detailDe(camp, partie)}</small>`}
     </div>
-    ${pendule && html`<div class="pendule" role="timer" data-pendule="${classe}">${formaterTemps(pendule)}</div>`}
+    ${camp?.tempsMillisecondes !== null && camp?.tempsMillisecondes !== undefined && html`<div class="pendule" role="timer" data-pendule></div>`}
   </div>`;
 
 function regrouperParCoup(coups) {
@@ -36,25 +62,24 @@ const listeCoups = (coups) => html`
     const dernier = indice === lignes.length - 1;
     return html`<li>
       <span class="numero">${numero}.</span>
-      <span class="coup ${dernier && !noir ? "courant" : ""}">${blanc}</span>
-      <span class="coup ${dernier && noir ? "courant" : ""}">${noir}</span>
+      <span class="coup ${dernier && !noir ? "courant" : ""}">${blanc.notation}</span>
+      <span class="coup ${dernier && noir ? "courant" : ""}">${noir?.notation}</span>
     </li>`;
   })}`;
 
-const dialogueBilan = (titre, explication, avecClassement) => html`
-  <h2>${titre}</h2>
-  <p class="discret">${explication}</p>
-  ${avecClassement && html`<div class="bilan">
-    <span>Classement blitz</span>
-    <span><strong>1532</strong> <span class="resultat-gagne">+9</span></span>
-  </div>`}
-  <div class="pied">
-    <a class="bouton" href="#/parties/opera">Revoir la partie</a>
-    <a class="bouton bouton-principal" href="#/salon" autofocus>Nouvelle partie</a>
-  </div>`;
-
-function ouvrirBilan(fragment) {
-  const dialogue = ouvrirDialogue(fragment);
+function ouvrirBilan(partie) {
+  const categorie = partie.categorie;
+  const dialogue = ouvrirDialogue(html`
+    <h2>${TITRES[partie.issue]}</h2>
+    <p class="discret">${MOTIFS[partie.motif] ?? "Cette partie ne compte pas pour le classement."}</p>
+    ${categorie && partie.issue !== "annulee" && html`<div class="bilan">
+      <span>Classement</span>
+      <span><strong>${partie.moi.classement}</strong></span>
+    </div>`}
+    <div class="pied">
+      ${partie.etat === "TERMINEE" && html`<a class="bouton" href="#/parties/${partie.id}">Revoir la partie</a>`}
+      <a class="bouton bouton-principal" href="#/salon" autofocus>Nouvelle partie</a>
+    </div>`);
   dialogue.querySelectorAll("a").forEach((lien) => lien.addEventListener("click", () => dialogue.close()));
 }
 
@@ -73,50 +98,60 @@ function demanderConfirmation({ titre, explication, action, danger }, surConfirm
   });
 }
 
-function afficherChoixPromotion(plateau, surChoix) {
+function afficherChoixPromotion(plateau, couleur, surChoix) {
   const zone = document.createElement("div");
   zone.className = "promotion";
+  const piece = (lettre) => (couleur === "BLANC" ? lettre.toUpperCase() : lettre);
   afficher(zone, html`
     <div class="promotion-boite" role="dialog" aria-label="Choisir la pièce de promotion">
       <p>Promouvoir votre pion en :</p>
       <div class="promotion-pieces">
-        ${PIECES_PROMOTION.map((piece) => html`
-          <button type="button" data-piece="${piece}" aria-label="${NOMS_PROMOTION[piece]}"><img src="${imagePiece(piece)}" alt=""></button>`)}
+        ${PROMOTIONS.map(({ lettre, type, nom }) => html`
+          <button type="button" data-promotion="${type}" aria-label="${nom}"><img src="${imagePiece(piece(lettre))}" alt=""></button>`)}
       </div>
     </div>`);
   zone.addEventListener("click", (evenement) => {
-    const bouton = evenement.target.closest("[data-piece]");
+    const bouton = evenement.target.closest("[data-promotion]");
     if (bouton) {
       zone.remove();
-      surChoix(bouton.dataset.piece);
+      surChoix(bouton.dataset.promotion);
     }
   });
   plateau.append(zone);
   zone.querySelector("button").focus();
 }
 
-export function vuePartie(contenu, { parametres }) {
-  const apercu = parametres.get("apercu");
-  const contreOrdinateur = apercu === "ordinateur";
-  const partie = partieEnCours;
-  const coups = [...partie.coups];
-  const temps = { adversaire: apercu === "temps" ? 41 : partie.tempsAdversaire, joueur: apercu === "temps" ? 14 : partie.tempsJoueur };
-  let auTrait = "joueur";
-  let termine = false;
-  let position = lirePosition(partie.position);
-  const minuteries = [];
+export function vuePartie(contenu, { aller }) {
+  let actif = true;
+  let arreter = () => {};
+  api.partie().then((partie) => {
+    if (!actif) return;
+    if (!partie) {
+      aller("#/salon");
+      return;
+    }
+    arreter = lancerPartie(contenu, partie);
+  }).catch(() => aller("#/salon"));
+  return () => {
+    actif = false;
+    arreter();
+  };
+}
 
-  const adversaire = contreOrdinateur ? { pseudo: `Ordinateur, ${parametres.get("elo") ?? 100} Elo` } : partie.adversaire;
-  const pendules = !contreOrdinateur;
+function lancerPartie(contenu, premiere) {
+  let partie = premiere;
+  let etatPrecedent = premiere.etat;
+  let recu = performance.now();
+  let message = "";
 
   afficher(contenu, html`
     <section class="partie">
-      ${bandeJoueur("bande-adversaire", adversaire, pendules && temps.adversaire)}
+      <div id="bande-haut" class="bande-adversaire"></div>
       <div class="plateau" id="plateau"></div>
-      ${bandeJoueur("bande-joueur", partie.joueur, pendules && temps.joueur)}
+      <div id="bande-bas" class="bande-joueur"></div>
       <div class="panneau">
         <aside class="panneau-coups" aria-label="Coups joués">
-          <h2>${pendules ? partie.cadence : "Sans pendule, non classée"}</h2>
+          <h2 id="cadence"></h2>
           <ol class="liste-coups" id="coups"></ol>
         </aside>
         <div class="panneau-actions" id="actions"></div>
@@ -126,49 +161,99 @@ export function vuePartie(contenu, { parametres }) {
   const plateau = contenu.querySelector("#plateau");
   const elementCoups = contenu.querySelector("#coups");
   const elementActions = contenu.querySelector("#actions");
+  const bandeHaut = contenu.querySelector("#bande-haut");
+  const bandeBas = contenu.querySelector("#bande-bas");
+
+  const echiquier = new Echiquier(plateau, {
+    orientation: premiere.maCouleur === "NOIR" ? "noir" : "blanc",
+    destinations: (nom) => partie.destinations?.[nom] ?? [],
+    surCoup: (depart, arrivee) => demanderLeCoup(depart, arrivee),
+  });
 
   const actualiserPendules = () => {
-    if (!pendules) return;
-    for (const [role, classe] of [["adversaire", "bande-adversaire"], ["joueur", "bande-joueur"]]) {
-      const pendule = contenu.querySelector(`[data-pendule="${classe}"]`);
-      pendule.textContent = formaterTemps(temps[role]);
-      const active = !termine && auTrait === role;
-      pendule.classList.toggle("active", active && temps[role] > SEUIL_TEMPS_BAS_S);
-      pendule.classList.toggle("basse", active && temps[role] <= SEUIL_TEMPS_BAS_S);
+    const ecoule = performance.now() - recu;
+    for (const [bande, camp] of [[bandeHaut, partie.adversaire], [bandeBas, partie.moi]]) {
+      const pendule = bande.querySelector("[data-pendule]");
+      if (!pendule || !camp) continue;
+      const reste = camp.tempsMillisecondes - (camp.penduleActive ? ecoule : 0);
+      pendule.textContent = formaterTemps(reste);
+      pendule.classList.toggle("active", camp.penduleActive && reste > SEUIL_TEMPS_BAS_MS);
+      pendule.classList.toggle("basse", camp.penduleActive && reste <= SEUIL_TEMPS_BAS_MS);
     }
   };
 
-  const actualiserCoups = () => {
-    afficher(elementCoups, listeCoups(coups));
-    elementCoups.scrollTop = elementCoups.scrollHeight;
-    elementCoups.scrollLeft = elementCoups.scrollWidth;
-  };
-
-  const terminer = (fragment) => {
-    termine = true;
-    actualiserPendules();
-    afficherActions();
-    ouvrirBilan(fragment);
-  };
-
-  function afficherActions() {
-    if (termine) {
+  function dessinerActions() {
+    if (partie.etat === "TERMINEE" || partie.etat === "ANNULEE") {
       afficher(elementActions, html`
-        <a class="bouton" href="#/parties/opera">Revoir la partie</a>
+        ${partie.etat === "TERMINEE" && html`<a class="bouton" href="#/parties/${partie.id}">Revoir la partie</a>`}
         <a class="bouton bouton-principal" href="#/salon">Nouvelle partie</a>`);
       return;
     }
-    if (apercu === "nulle") {
-      afficher(elementActions, html`
-        <p class="message-partie" style="flex-basis:100%" role="status">${adversaire.pseudo} propose la nulle. Jouer un coup la refuse.</p>
-        <button class="bouton bouton-principal" type="button" data-action="accepter">Accepter la nulle</button>
-        <button class="bouton" type="button" data-action="refuser">Refuser</button>`);
-      return;
-    }
+    const texte = message || (partie.etat === "EN_ATTENTE" ? "Votre partie attend un adversaire. Elle commencera dès qu'un joueur la rejoindra."
+      : partie.nulleProposeeParAdversaire ? `${partie.adversaire.pseudo} propose la nulle. Jouer un coup la refuse.`
+      : partie.nulleProposeeParMoi ? `Nulle proposée. En attente de la réponse de ${partie.adversaire.pseudo}.`
+      : partie.contreOrdinateur && partie.trait !== partie.maCouleur ? "L'ordinateur réfléchit."
+      : "");
     afficher(elementActions, html`
-      ${pendules && html`<button class="bouton" type="button" data-action="nulle">Proposer la nulle</button>`}
-      ${coups.length < 2 && html`<button class="bouton" type="button" data-action="annuler">Annuler la partie</button>`}
-      <button class="bouton bouton-danger" type="button" data-action="abandonner">Abandonner</button>`);
+      ${texte && html`<p class="message-partie" style="flex-basis:100%" role="status">${texte}</p>`}
+      ${partie.nulleProposeeParAdversaire ? html`
+        <button class="bouton bouton-principal" type="button" data-action="accepter">Accepter la nulle</button>
+        <button class="bouton" type="button" data-action="refuser">Refuser</button>` : html`
+        ${partie.etat === "EN_COURS" && !partie.contreOrdinateur && !partie.nulleProposeeParMoi && html`<button class="bouton" type="button" data-action="nulle">Proposer la nulle</button>`}
+        ${partie.annulable && html`<button class="bouton" type="button" data-action="annuler">Annuler la partie</button>`}
+        ${partie.etat === "EN_COURS" && html`<button class="bouton bouton-danger" type="button" data-action="abandonner">Abandonner</button>`}`}`);
+  }
+
+  function dessiner(animer) {
+    afficher(bandeHaut, bandeJoueur("", partie.adversaire, partie));
+    afficher(bandeBas, bandeJoueur("", partie.moi, partie));
+    afficher(contenu.querySelector("#cadence"), html`${partie.contreOrdinateur ? "Sans pendule, non classée" : partie.cadence}`);
+    afficher(elementCoups, listeCoups(partie.coups));
+    elementCoups.scrollTop = elementCoups.scrollHeight;
+    elementCoups.scrollLeft = elementCoups.scrollWidth;
+    const dernier = partie.coups.at(-1);
+    echiquier.afficherPosition(lirePosition(partie.position), {
+      dernierCoup: dernier ? [dernier.depart, dernier.arrivee] : null,
+      caseEnEchec: partie.caseEnEchec,
+      animer,
+    });
+    actualiserPendules();
+    dessinerActions();
+  }
+
+  function recevoir(nouvelle) {
+    const nouveauCoup = nouvelle.coups.length > partie.coups.length;
+    partie = nouvelle;
+    recu = performance.now();
+    message = "";
+    dessiner(nouveauCoup);
+    const finie = partie.etat === "TERMINEE" || partie.etat === "ANNULEE";
+    if (finie && etatPrecedent !== partie.etat) {
+      actualiserSession().finally(() => ouvrirBilan(partie));
+    }
+    etatPrecedent = partie.etat;
+  }
+
+  /** Un refus du serveur se lit dans le panneau ; l'échiquier reprend la position qu'il connaît. */
+  async function agir(action) {
+    try {
+      const reponse = await action();
+      if (reponse) recevoir(reponse);
+    } catch (erreur) {
+      if (!(erreur instanceof ErreurApi)) throw erreur;
+      message = erreur.message;
+      dessiner(false);
+    }
+  }
+
+  function demanderLeCoup(depart, arrivee) {
+    const piece = echiquier.position[depart];
+    const estPromotion = piece?.toLowerCase() === "p" && arrivee.endsWith(RANGEE_DE_PROMOTION[partie.maCouleur]);
+    if (estPromotion) {
+      afficherChoixPromotion(plateau, partie.maCouleur, (promotion) => agir(() => api.jouer({ depart, arrivee, promotion })));
+    } else {
+      agir(() => api.jouer({ depart, arrivee }));
+    }
   }
 
   elementActions.addEventListener("click", (evenement) => {
@@ -176,67 +261,39 @@ export function vuePartie(contenu, { parametres }) {
     if (action === "abandonner") {
       demanderConfirmation({
         titre: "Abandonner la partie ?",
-        explication: pendules ? "Votre adversaire gagne et votre classement blitz baisse." : "Votre classement ne change pas.",
+        explication: partie.contreOrdinateur ? "Votre classement ne change pas." : "Votre adversaire gagne et votre classement baisse.",
         action: "Abandonner",
         danger: true,
-      }, () => terminer(dialogueBilan("Vous avez abandonné", `${adversaire.pseudo} gagne la partie.`, false)));
+      }, () => agir(() => api.abandonner()));
+    } else if (action === "annuler") {
+      demanderConfirmation({
+        titre: "Annuler la partie ?",
+        explication: "Elle ne comptera pas : aucun résultat ni classement ne change.",
+        action: "Annuler la partie",
+        danger: true,
+      }, () => agir(() => api.annuler()));
     } else if (action === "nulle") {
       demanderConfirmation({
         titre: "Proposer la nulle ?",
-        explication: `${adversaire.pseudo} pourra accepter ou continuer la partie.`,
+        explication: `${partie.adversaire.pseudo} pourra accepter ou continuer la partie.`,
         action: "Proposer la nulle",
-      }, () => {
-        afficher(elementActions, html`<p class="message-partie" style="flex-basis:100%" role="status">Nulle proposée. En attente de la réponse de ${adversaire.pseudo}.</p>`);
-      });
+      }, () => agir(() => api.proposerNulle()));
     } else if (action === "accepter") {
-      terminer(dialogueBilan("Partie nulle", "Vous avez accepté la nulle.", true));
+      agir(() => api.repondreNulle(true));
     } else if (action === "refuser") {
-      location.hash = "#/partie";
+      agir(() => api.repondreNulle(false));
     }
   });
 
-  const echiquier = new Echiquier(plateau, {
-    destinations: (nom) => (!termine && auTrait === "joueur" && partie.destinations[nom]) || [],
-    surCoup: (depart, arrivee) => {
-      position = { ...position, [arrivee]: position[depart] };
-      delete position[depart];
-      if (depart === "e1" && arrivee === "g1") {
-        position.f1 = position.h1;
-        delete position.h1;
-      }
-      coups.push(partie.notations[depart + arrivee] ?? arrivee);
-      auTrait = "adversaire";
-      echiquier.afficherPosition(position, { dernierCoup: [depart, arrivee] });
-      actualiserPendules();
-      actualiserCoups();
-      minuteries.push(setTimeout(() => {
-        position = { ...position, [partie.reponse.arrivee]: position[partie.reponse.depart] };
-        delete position[partie.reponse.depart];
-        coups.push(partie.reponse.notation);
-        echiquier.afficherPosition(position, { dernierCoup: [partie.reponse.depart, partie.reponse.arrivee], animer: true });
-        actualiserCoups();
-      }, DELAI_REPONSE_ADVERSAIRE_MS));
-    },
+  const cesserDEcouter = ecouter((nouvelle) => {
+    if (nouvelle.id === partie.id) recevoir(nouvelle);
   });
-  echiquier.afficherPosition(position, { dernierCoup: partie.dernierCoup });
-  actualiserPendules();
-  actualiserCoups();
-  afficherActions();
-
-  const tic = setInterval(() => {
-    if (termine || !pendules) return;
-    temps[auTrait] = Math.max(0, temps[auTrait] - 1);
-    actualiserPendules();
-  }, SECONDE_MS);
-
-  if (apercu === "promotion") {
-    afficherChoixPromotion(plateau, () => {});
-  } else if (apercu === "fin") {
-    terminer(dialogueBilan("Vous avez gagné", "Échec et mat au 24e coup.", true));
-  }
+  const tic = setInterval(actualiserPendules, INTERVALLE_PENDULE_MS);
+  dessiner(false);
+  if (partie.etat === "TERMINEE" || partie.etat === "ANNULEE") dessinerActions();
 
   return () => {
     clearInterval(tic);
-    minuteries.forEach(clearTimeout);
+    cesserDEcouter();
   };
 }

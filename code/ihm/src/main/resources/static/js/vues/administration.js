@@ -1,8 +1,9 @@
 import { html, afficher, ouvrirDialogue } from "../html.js";
 import { icone } from "../icones.js";
-import { comptes, joueurConnecte } from "../exemple.js";
+import { api, ErreurApi } from "../api.js";
+import { session } from "../session.js";
 
-const estAdministrateur = (compte) => compte.role === "Administrateur";
+const estAdministrateur = (compte) => compte.administrateur;
 
 const FILTRES = [
   { valeur: "tous", nom: "Tous", garde: () => true },
@@ -27,9 +28,9 @@ function actionsCompte(compte) {
 
 const ligneCompte = (compte) => html`
   <tr>
-    <td class="pseudo"><span class="avatar">${compte.pseudo[0].toUpperCase()}</span> ${compte.pseudo}${compte.pseudo === joueurConnecte.pseudo && html` <span class="discret">(vous)</span>`}</td>
+    <td class="pseudo"><span class="avatar">${compte.pseudo[0].toUpperCase()}</span> ${compte.pseudo}${compte.pseudo === session.joueur.pseudo && html` <span class="discret">(vous)</span>`}</td>
     <td class="discret">${compte.email}</td>
-    <td data-etiquette="Rôle">${compte.role}</td>
+    <td data-etiquette="Rôle">${compte.administrateur ? "Administrateur" : "Joueur"}</td>
     <td data-etiquette="État"><span class="pastille ${compte.suspendu ? "suspendu" : ""}">${compte.suspendu ? "Suspendu" : "Actif"}</span></td>
     <td>${actionsCompte(compte)}</td>
   </tr>`;
@@ -53,8 +54,10 @@ const CONFIRMATIONS = {
   },
 };
 
+const ACTIONS = { suspendre: api.suspendre, reactiver: api.reactiver, nommer: api.nommer };
+
 export function vueAdministration(contenu) {
-  const liste = comptes.map((compte) => ({ ...compte }));
+  let liste = [];
   let filtre = FILTRES[0];
   let recherche = "";
 
@@ -88,11 +91,25 @@ export function vueAdministration(contenu) {
         </table>`);
   };
 
-  const executer = (action, compte) => {
-    if (action === "suspendre") compte.suspendu = true;
-    if (action === "reactiver") compte.suspendu = false;
-    if (action === "nommer") compte.role = "Administrateur";
+  const charger = async () => {
+    liste = await api.comptes();
     dessinerListe();
+  };
+
+  /** Le serveur vérifie le rôle à chaque action : son refus s'affiche, et la liste repart de son état réel. */
+  const executer = async (action, pseudo) => {
+    try {
+      await ACTIONS[action](pseudo);
+      await charger();
+    } catch (erreur) {
+      if (!(erreur instanceof ErreurApi)) throw erreur;
+      emplacement.querySelector(".alerte-formulaire")?.remove();
+      const alerte = document.createElement("p");
+      alerte.className = "alerte-formulaire";
+      alerte.setAttribute("role", "alert");
+      alerte.textContent = erreur.message;
+      emplacement.prepend(alerte);
+    }
   };
 
   contenu.querySelectorAll("[data-filtre]").forEach((bouton) => {
@@ -121,9 +138,9 @@ export function vueAdministration(contenu) {
     dialogue.querySelector("[data-fermer]").addEventListener("click", () => dialogue.close());
     dialogue.querySelector("[data-confirmer]").addEventListener("click", () => {
       dialogue.close();
-      executer(action, liste.find((compte) => compte.pseudo === pseudo));
+      executer(action, pseudo);
     });
   });
 
-  dessinerListe();
+  charger().catch(() => afficher(emplacement, html`<div class="vide vide-cadre"><p>Le serveur n'a pas répondu.</p><p>Rechargez la page pour réessayer.</p></div>`));
 }

@@ -1,8 +1,10 @@
 import { html, afficher } from "../html.js";
+import { api, ErreurApi } from "../api.js";
 import { Echiquier, lirePosition } from "../echiquier.js";
 import { icone, iconeFamille, libelleCadence, libelleCourt } from "../icones.js";
-import { lignePartie } from "./historique.js";
-import { CADENCES, classementJoueur, classements, joueurConnecte, partiesOuvertes, partiesTerminees, POSITION_INITIALE } from "../exemple.js";
+import { CADENCES, POSITION_INITIALE } from "../donnees.js";
+import { session } from "../session.js";
+import { lignePartie, NOMS_FAMILLES } from "./historique.js";
 
 // Échelle affichée sur le site : le serveur la convertit vers celle de Stockfish (100 devient 1320, 3190 reste 3190).
 const ELO_MINIMUM = 100;
@@ -10,17 +12,20 @@ const ELO_MAXIMUM = 3190;
 const PAS_DE_LA_BARRE = 10;
 const CADENCE_PAR_DEFAUT = "5+0";
 const NOMBRE_LIGNES_ACCUEIL = 3;
+const INTERVALLE_ACTUALISATION_MS = 5000;
 const AIDE_ELO = `De ${ELO_MINIMUM} à ${ELO_MAXIMUM}. Glissez la barre ou saisissez une valeur.`;
 const estUnEloValide = (valeur) => Number.isInteger(valeur) && valeur >= ELO_MINIMUM && valeur <= ELO_MAXIMUM;
 
 const COULEURS = [
-  { valeur: "hasard", nom: "Au hasard" },
-  { valeur: "blanc", nom: "Blancs" },
-  { valeur: "noir", nom: "Noirs" },
+  { valeur: "HASARD", nom: "Au hasard" },
+  { valeur: "BLANC", nom: "Blancs" },
+  { valeur: "NOIR", nom: "Noirs" },
 ];
+const COULEUR_DU_CREATEUR = { BLANC: "les blancs", NOIR: "les noirs" };
 
 const familleDe = (cadence) => CADENCES.find(({ cadences }) => cadences.includes(cadence)).famille;
 const dureeEnPendule = (cadence) => `${cadence.split("+")[0]}:00`;
+const pointsEn = (famille) => session.joueur.classements[famille.toUpperCase()];
 
 const groupeCouleurs = () => html`
   <fieldset class="champ">
@@ -68,7 +73,7 @@ const vueInvitation = (cadence) => html`
   <form class="panneau-formulaire" data-action="creer" novalidate>
     <div class="champ">
       <label for="invite">Pseudo du joueur</label>
-      <input id="invite" name="invite" autocomplete="off" required>
+      <input id="invite" name="invite" autocomplete="off" autocapitalize="none" required>
       <p class="aide">Il recevra l'invitation et pourra l'accepter ou la refuser.</p>
     </div>
     ${menuCadence(cadence)}
@@ -78,7 +83,7 @@ const vueInvitation = (cadence) => html`
 
 const vueOrdinateur = () => html`
   ${enTeteVue("Contre l'ordinateur")}
-  <form class="panneau-formulaire" id="contre-ordinateur" novalidate>
+  <form class="panneau-formulaire" data-action="ordinateur" novalidate>
     <div class="champ">
       <label for="elo-saisie">Elo de l'ordinateur</label>
       <div class="reglage-elo">
@@ -98,9 +103,9 @@ const ligneOuverte = (partie) => html`
   <li class="ligne-ouverte">
     <div class="ligne-ouverte-joueur">
       <strong>${partie.pseudo}</strong> <span class="discret">(${partie.classement})</span>
-      <p class="discret">${iconeFamille(partie.famille)} ${libelleCadence(partie.cadence)}, il joue : ${partie.couleur.toLowerCase()}</p>
+      <p class="discret">${iconeFamille(NOMS_FAMILLES[partie.categorie])} ${libelleCadence(partie.cadence)}, ${COULEUR_DU_CREATEUR[partie.couleur] ? html`il joue ${COULEUR_DU_CREATEUR[partie.couleur]}` : "couleurs au hasard"}</p>
     </div>
-    <a class="bouton bouton-petit" href="#/partie">Rejoindre</a>
+    <button class="bouton bouton-petit" type="button" data-rejoindre="${partie.id}">Rejoindre</button>
   </li>`;
 
 const listeOuvertes = (parties) => parties.length === 0
@@ -110,21 +115,27 @@ const listeOuvertes = (parties) => parties.length === 0
     </div>`
   : html`<ul class="liste-ouvertes">${parties.map(ligneOuverte)}</ul>`;
 
-const bandeauInvitation = () => html`
+const bandeauInvitation = (invitation) => html`
   <div class="bandeau" role="status">
-    <p><strong>claire_b</strong> vous invite à une partie en 10 min + 5 s.</p>
+    <p><strong>${invitation.pseudo}</strong> vous invite à une partie en ${libelleCadence(invitation.cadence)}.</p>
     <div class="bandeau-actions">
-      <a class="bouton bouton-principal bouton-petit" href="#/partie">Accepter</a>
-      <a class="bouton bouton-petit" href="#/salon">Refuser</a>
+      <button class="bouton bouton-principal bouton-petit" type="button" data-rejoindre="${invitation.id}">Accepter</button>
+      <button class="bouton bouton-petit" type="button" data-refuser="${invitation.id}">Refuser</button>
     </div>
   </div>`;
 
-const bandeauAttente = () => html`
+const bandeauAttente = (partie) => html`
   <div class="bandeau" role="status">
-    <p>Votre partie en 5 min attend un adversaire.</p>
+    <p>Votre partie en ${libelleCadence(partie.cadence)} attend un adversaire.</p>
     <div class="bandeau-actions">
-      <a class="bouton bouton-danger bouton-petit" href="#/salon">Annuler la partie</a>
+      <button class="bouton bouton-danger bouton-petit" type="button" data-annuler-partie>Annuler la partie</button>
     </div>
+  </div>`;
+
+const bandeauReprise = () => html`
+  <div class="bandeau" role="status">
+    <p>Vous avez une partie en cours.</p>
+    <div class="bandeau-actions"><a class="bouton bouton-principal bouton-petit" href="#/partie">Reprendre</a></div>
   </div>`;
 
 const bandeSalle = (classe, nom, detail, temps) => html`
@@ -136,64 +147,70 @@ const bandeSalle = (classe, nom, detail, temps) => html`
     ${temps && html`<div class="pendule" data-temps>${temps}</div>`}
   </div>`;
 
-const totalParties = () => classements.reduce((somme, { victoires, nulles, defaites }) => somme + victoires + nulles + defaites, 0);
+const totalClasses = (bilans) => bilans.reduce((somme, { victoires, nulles, defaites }) => somme + victoires + nulles + defaites, 0);
 
-/* L'accueil du téléphone : le profil, les parties, et un seul bouton pour jouer. */
-const tableauDeBord = (etat, parties) => html`
-  <div class="tableau-bord">
-    <section class="carte-profil" aria-label="Votre profil">
-      <a class="profil-tete" href="#/classements">
-        <span class="avatar avatar-moyen" aria-hidden="true">${joueurConnecte.pseudo[0].toUpperCase()}</span>
-        <span class="profil-nom">
-          <strong>${joueurConnecte.pseudo}</strong>
-          <small>${totalParties()} parties classées</small>
-        </span>
-        ${icone("suite")}
-      </a>
-      <ul class="mini-classements">
-        ${classements.map(({ famille, points }) => html`
-          <li>
-            <a href="#/classements">
-              <span class="mini-famille">${iconeFamille(famille)} ${famille}</span>
-              <strong>${points}</strong>
-            </a>
-          </li>`)}
-      </ul>
-    </section>
+const carteProfil = (bilans) => html`
+  <section class="carte-profil" aria-label="Votre profil">
+    <a class="profil-tete" href="#/classements">
+      <span class="avatar avatar-moyen" aria-hidden="true">${session.joueur.pseudo[0].toUpperCase()}</span>
+      <span class="profil-nom">
+        <strong>${session.joueur.pseudo}</strong>
+        <small>${totalClasses(bilans)} ${totalClasses(bilans) > 1 ? "parties classées" : "partie classée"}</small>
+      </span>
+      ${icone("suite")}
+    </a>
+    <ul class="mini-classements">
+      ${CADENCES.map(({ famille }) => html`
+        <li>
+          <a href="#/classements">
+            <span class="mini-famille">${iconeFamille(famille)} ${famille}</span>
+            <strong>${pointsEn(famille)}</strong>
+          </a>
+        </li>`)}
+    </ul>
+  </section>`;
 
-    ${etat === "invitation" && bandeauInvitation()}
-    ${etat === "attente" && bandeauAttente()}
+const dernieresParties = (parties) => html`
+  <section aria-labelledby="titre-dernieres">
+    <div class="section-tete">
+      <h2 id="titre-dernieres">Mes dernières parties</h2>
+      ${parties.length > 0 && html`<a class="lien-discret" href="#/parties">Tout voir</a>`}
+    </div>
+    <div class="cadre">
+      ${parties.length === 0
+        ? html`<div class="vide"><p>Vous n'avez pas encore terminé de partie.</p><p>Elles apparaîtront ici, prêtes à être revues.</p></div>`
+        : html`<ul class="liste-parties">${parties.slice(0, NOMBRE_LIGNES_ACCUEIL).map(lignePartie)}</ul>`}
+    </div>
+  </section>`;
 
+const tableauDeBord = ({ salon, bilans, parties }) => {
+  const courante = salon.partieCourante;
+  const enAttente = courante?.etat === "EN_ATTENTE";
+  return html`
+    ${carteProfil(bilans)}
+    ${salon.invitations.map(bandeauInvitation)}
+    ${enAttente && bandeauAttente(courante)}
+    ${courante?.etat === "EN_COURS" && bandeauReprise()}
     <section aria-labelledby="titre-ouvertes">
       <div class="section-tete">
         <h2 id="titre-ouvertes">Parties ouvertes</h2>
-        ${parties.length > NOMBRE_LIGNES_ACCUEIL && html`<button class="lien-discret" type="button" data-ouvrir="ouvertes">Tout voir (${parties.length})</button>`}
+        ${salon.ouvertes.length > NOMBRE_LIGNES_ACCUEIL && html`<button class="lien-discret" type="button" data-ouvrir="ouvertes">Tout voir (${salon.ouvertes.length})</button>`}
       </div>
-      <div class="cadre">${listeOuvertes(parties.slice(0, NOMBRE_LIGNES_ACCUEIL))}</div>
+      <div class="cadre">${listeOuvertes(salon.ouvertes.slice(0, NOMBRE_LIGNES_ACCUEIL))}</div>
     </section>
-
-    <section aria-labelledby="titre-dernieres">
-      <div class="section-tete">
-        <h2 id="titre-dernieres">Mes dernières parties</h2>
-        <a class="lien-discret" href="#/parties">Tout voir</a>
-      </div>
-      <div class="cadre">
-        <ul class="liste-parties">${partiesTerminees.slice(0, NOMBRE_LIGNES_ACCUEIL).map(lignePartie)}</ul>
-      </div>
-    </section>
-
+    ${dernieresParties(parties)}
     <div class="barre-jouer">
-      <button class="bouton bouton-principal bouton-grand" type="button" data-ouvrir="nouvelle" ${etat === "attente" ? html`disabled` : ""}>
-        ${etat === "attente" ? "Partie en attente" : "Jouer"}
+      <button class="bouton bouton-principal bouton-grand" type="button" data-ouvrir="nouvelle" ${courante ? html`disabled` : ""}>
+        ${enAttente ? "Partie en attente" : courante ? "Partie en cours" : "Jouer"}
       </button>
-    </div>
-  </div>`;
+    </div>`;
+};
 
-export function vueSalon(contenu, { parametres }) {
-  const etat = parametres.get("etat");
-  const parties = etat === "vide" ? [] : partiesOuvertes;
+export function vueSalon(contenu, { aller }) {
   let cadence = CADENCE_PAR_DEFAUT;
-  let vue = parametres.get("type") === "ordinateur" ? "ordinateur" : "principale";
+  let vue = "principale";
+  let donnees = null;
+  let actif = true;
 
   afficher(contenu, html`
     <section class="salle">
@@ -202,7 +219,7 @@ export function vueSalon(contenu, { parametres }) {
         <div id="plateau"></div>
         <div id="bande-bas"></div>
       </div>
-      ${tableauDeBord(etat, parties)}
+      <div class="tableau-bord" id="tableau"></div>
     </section>
     <dialog class="feuille" aria-label="Nouvelle partie" tabindex="-1">
       <button class="feuille-fermer" type="button" aria-label="Fermer">${icone("fermer")}</button>
@@ -215,9 +232,10 @@ export function vueSalon(contenu, { parametres }) {
       </div>
     </dialog>`);
 
+  const tableau = contenu.querySelector("#tableau");
   const corps = contenu.querySelector("#corps");
-  const echiquier = new Echiquier(contenu.querySelector("#plateau"));
-  echiquier.afficherPosition(lirePosition(POSITION_INITIALE));
+  const feuille = contenu.querySelector(".feuille");
+  new Echiquier(contenu.querySelector("#plateau"), { decor: true }).afficherPosition(lirePosition(POSITION_INITIALE));
 
   const dessinerBandes = () => {
     const contreOrdinateur = vue === "ordinateur";
@@ -226,7 +244,7 @@ export function vueSalon(contenu, { parametres }) {
       ? bandeSalle("bande-adversaire", "Ordinateur", "Niveau au choix", null)
       : bandeSalle("bande-adversaire", "Adversaire", null, temps));
     afficher(contenu.querySelector("#bande-bas"),
-      bandeSalle("bande-joueur", joueurConnecte.pseudo, classementJoueur(familleDe(cadence)), temps));
+      bandeSalle("bande-joueur", session.joueur.pseudo, contreOrdinateur ? null : pointsEn(familleDe(cadence)), temps));
   };
 
   const VUES = { principale: vuePrincipale, invitation: vueInvitation, ordinateur: vueOrdinateur };
@@ -238,19 +256,70 @@ export function vueSalon(contenu, { parametres }) {
     contenu.querySelectorAll("[data-onglet]").forEach((bouton) => {
       bouton.setAttribute("aria-selected", String(bouton.dataset.onglet === onglet));
     });
-    if (onglet === "ouvertes") afficher(corps, listeOuvertes(parties));
+    if (onglet === "ouvertes") afficher(corps, listeOuvertes(donnees?.salon.ouvertes ?? []));
     else dessinerVue();
   };
+  const ouvrirFeuille = (onglet) => {
+    if (onglet === "nouvelle") vue = "principale";
+    choisirOnglet(onglet);
+    feuille.showModal();
+    // Le focus va sur la feuille, pas sur sa croix : ouvrir pour jouer ne doit pas proposer de fermer.
+    feuille.focus();
+  };
 
+  /** Une erreur du serveur s'affiche là où le joueur regarde : dans la feuille si elle est ouverte. */
+  const signaler = (erreur) => {
+    if (!(erreur instanceof ErreurApi)) throw erreur;
+    const zone = feuille.open ? corps : tableau;
+    zone.querySelector(".alerte-formulaire")?.remove();
+    const alerte = document.createElement("p");
+    alerte.className = "alerte-formulaire";
+    alerte.setAttribute("role", "alert");
+    alerte.textContent = erreur.message;
+    zone.prepend(alerte);
+  };
+
+  const charger = async () => {
+    const [salon, bilans, parties] = await Promise.all([api.salon(), api.bilans(), api.mesParties()]);
+    if (!actif) return;
+    donnees = { salon, bilans, parties };
+    afficher(tableau, tableauDeBord(donnees));
+  };
+
+  const actualiserSansDeranger = () => {
+    // Une feuille ouverte n'est pas touchée : on ne redessine pas un formulaire en cours de saisie.
+    if (actif && !feuille.open) charger().catch(() => {});
+  };
+
+  const agir = async (action) => {
+    try {
+      await action();
+    } catch (erreur) {
+      signaler(erreur);
+    }
+  };
+
+  tableau.addEventListener("click", (evenement) => {
+    const { target } = evenement;
+    const ouvrir = target.closest("[data-ouvrir]");
+    const rejoindre = target.closest("[data-rejoindre]");
+    const refuser = target.closest("[data-refuser]");
+    if (ouvrir) ouvrirFeuille(ouvrir.dataset.ouvrir);
+    if (rejoindre) agir(async () => { await api.rejoindre(rejoindre.dataset.rejoindre); aller("#/partie"); });
+    if (refuser) agir(async () => { await api.refuser(refuser.dataset.refuser); await charger(); });
+    if (target.closest("[data-annuler-partie]")) agir(async () => { await api.annuler(); await charger(); });
+  });
   contenu.querySelectorAll("[data-onglet]").forEach((bouton) => {
     bouton.addEventListener("click", () => choisirOnglet(bouton.dataset.onglet));
   });
   corps.addEventListener("click", (evenement) => {
     const bouton = evenement.target.closest("[data-vue]");
+    const rejoindre = evenement.target.closest("[data-rejoindre]");
     if (bouton) {
       vue = bouton.dataset.vue;
       dessinerVue();
     }
+    if (rejoindre) agir(async () => { await api.rejoindre(rejoindre.dataset.rejoindre); feuille.close(); aller("#/partie"); });
   });
   corps.addEventListener("change", (evenement) => {
     if (evenement.target.name !== "cadence") return;
@@ -275,31 +344,25 @@ export function vueSalon(contenu, { parametres }) {
   corps.addEventListener("submit", (evenement) => {
     evenement.preventDefault();
     const formulaire = evenement.target;
-    if (formulaire.id !== "contre-ordinateur") {
-      location.hash = "#/salon?etat=attente";
+    const couleur = formulaire.elements.couleur.value;
+    if (formulaire.dataset.action === "ordinateur") {
+      const saisie = formulaire.elements.elo;
+      if (!estUnEloValide(Number(saisie.value))) {
+        saisie.focus();
+        return;
+      }
+      agir(async () => {
+        await api.contreOrdinateur({ elo: Number(saisie.value), couleur });
+        feuille.close();
+        aller("#/partie");
+      });
       return;
     }
-    const saisie = formulaire.querySelector("#elo-saisie");
-    if (estUnEloValide(Number(saisie.value))) {
-      location.hash = `#/partie?apercu=ordinateur&elo=${Number(saisie.value)}`;
-    } else {
-      saisie.focus();
-    }
-  });
-
-  const voirOuvertes = parametres.get("vue") === "parties" || etat === "vide";
-  choisirOnglet(voirOuvertes ? "ouvertes" : "nouvelle");
-  dessinerBandes();
-
-  const feuille = contenu.querySelector(".feuille");
-  const ouvrirFeuille = (onglet) => {
-    choisirOnglet(onglet);
-    feuille.showModal();
-    // Le focus va sur la feuille, pas sur sa croix : ouvrir pour jouer ne doit pas proposer de fermer.
-    feuille.focus();
-  };
-  contenu.querySelectorAll("[data-ouvrir]").forEach((bouton) => {
-    bouton.addEventListener("click", () => ouvrirFeuille(bouton.dataset.ouvrir));
+    agir(async () => {
+      await api.creerPartie({ cadence, couleur, invite: formulaire.elements.invite?.value.trim() ?? "" });
+      feuille.close();
+      await charger();
+    });
   });
   feuille.querySelector(".feuille-fermer").addEventListener("click", () => feuille.close());
   feuille.addEventListener("click", (evenement) => {
@@ -307,7 +370,11 @@ export function vueSalon(contenu, { parametres }) {
     if (evenement.target === feuille) feuille.close();
   });
 
-  if (parametres.has("feuille") || parametres.has("type") || parametres.has("vue")) {
-    ouvrirFeuille(voirOuvertes ? "ouvertes" : "nouvelle");
-  }
+  dessinerVue();
+  charger().catch((erreur) => signaler(erreur));
+  const minuterie = setInterval(actualiserSansDeranger, INTERVALLE_ACTUALISATION_MS);
+  return () => {
+    actif = false;
+    clearInterval(minuterie);
+  };
 }
