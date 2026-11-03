@@ -75,18 +75,45 @@ public class ControleurPartie implements IPartie {
         return depotParties.partiesOuvertes();
     }
 
+    /** The player's screen follows the game from the request on: it learns whether the creator accepted. */
     @Override
-    public void rejoindrePartie(PartieEntreJoueurs partie) {
+    public void demanderARejoindre(PartieEntreJoueurs partie) {
+        exigerDePouvoirJouer();
         files.executer(partie, () -> {
+            exigerQueLeCreateurSoitDisponible(partie);
             partie.abonner(vue);
             try {
-                partie.rejoindre(joueurConnecte);
+                partie.demanderARejoindre(joueurConnecte);
             } catch (TransitionInterditeException refus) {
                 partie.desabonner(vue);
                 throw refus;
             }
         });
         partieCourante = partie;
+    }
+
+    @Override
+    public void confirmerDemande(PartieEntreJoueurs partie) {
+        files.executer(partie, () -> partie.confirmerDemande(joueurConnecte));
+        partieCourante = partie;
+    }
+
+    @Override
+    public void refuserDemande(PartieEntreJoueurs partie) {
+        files.executer(partie, () -> partie.refuserDemande(joueurConnecte));
+    }
+
+    @Override
+    public void retirerDemande(PartieEntreJoueurs partie) {
+        files.executer(partie, () -> {
+            partie.retirerDemande(joueurConnecte);
+            partie.desabonner(vue);
+        });
+    }
+
+    @Override
+    public void annulerPartie(PartieEntreJoueurs partie) {
+        files.executer(partie, () -> partie.annuler(joueurConnecte));
     }
 
     @Override
@@ -142,6 +169,7 @@ public class ControleurPartie implements IPartie {
         exigerDePouvoirJouer();
         PartieContreOrdinateur partie = new PartieContreOrdinateur(joueurConnecte, couleur, force, horloge);
         suivre(partie);
+        partieCourante = partie;
         lancerLOrdinateurSiCEstSonTour(partie);
     }
 
@@ -170,7 +198,6 @@ public class ControleurPartie implements IPartie {
             partie.abonner(vue);
             depotParties.enregistrer(partie);
         });
-        partieCourante = partie;
     }
 
     private void lancerLOrdinateurSiCEstSonTour(Partie partie) {
@@ -222,6 +249,17 @@ public class ControleurPartie implements IPartie {
     private void exigerDePouvoirJouer() {
         if (!joueurConnecte.peutJouer()) {
             throw new ActionRefuseeException(joueurConnecte.pseudo() + " ne peut pas commencer de partie");
+        }
+    }
+
+    /** The business core refuses these requests too; this check only tells the player why, in their words. */
+    private static void exigerQueLeCreateurSoitDisponible(PartieEntreJoueurs partie) {
+        String createur = partie.createur().pseudo();
+        if (!partie.createur().peutJouer()) {
+            throw new ActionRefuseeException(createur + " joue déjà une partie");
+        }
+        if (partie.demandeur().isPresent()) {
+            throw new ActionRefuseeException(createur + " répond déjà à une autre demande");
         }
     }
 

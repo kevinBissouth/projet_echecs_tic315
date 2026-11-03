@@ -62,18 +62,108 @@ class PartieEntreJoueursTest {
     }
 
     @Test
-    void uneNouvellePartieAttendUnAdversaireEtOccupeLeCreateur_RG11() {
+    void unePartieEnAttenteNOccupePasEncoreSonCreateur_RG11() {
         PartieEntreJoueurs partie = partieOuverte();
 
         assertEquals(EtatPartie.EN_ATTENTE, partie.etat());
+        assertTrue(alice.peutJouer());
+    }
+
+    @Test
+    void unCreateurPeutAvoirPlusieursPartiesEnAttente_RG11() {
+        partieOuverte();
+
+        assertEquals(EtatPartie.EN_ATTENTE, partieOuverte().etat());
+    }
+
+    @Test
+    void uneDemandeAttendLaConfirmationDuCreateur() {
+        PartieEntreJoueurs partie = partieOuverte();
+
+        partie.demanderARejoindre(bob);
+
+        assertEquals(EtatPartie.EN_ATTENTE, partie.etat());
+        assertEquals(Optional.of(bob), partie.demandeur());
+        assertThrows(TransitionInterditeException.class, () -> partie.demanderARejoindre(carla), "une demande à la fois");
+    }
+
+    @Test
+    void confirmerLaDemandeDemarreLaPartie() {
+        PartieEntreJoueurs partie = partieOuverte();
+        partie.demanderARejoindre(bob);
+
+        assertThrows(TransitionInterditeException.class, () -> partie.confirmerDemande(bob), "seul le créateur confirme");
+        partie.confirmerDemande(alice);
+
+        assertEquals(EtatPartie.EN_COURS, partie.etat());
+        assertFalse(alice.peutJouer());
+        assertFalse(bob.peutJouer());
+    }
+
+    @Test
+    void refuserLaDemandeAnnuleLaPartie() {
+        PartieEntreJoueurs partie = partieOuverte();
+        partie.demanderARejoindre(bob);
+
+        partie.refuserDemande(alice);
+
+        assertEquals(EtatPartie.ANNULEE, partie.etat());
+        assertTrue(bob.peutJouer());
+    }
+
+    @Test
+    void leDemandeurPeutRetirerSaDemande() {
+        PartieEntreJoueurs partie = partieOuverte();
+        partie.demanderARejoindre(bob);
+
+        partie.retirerDemande(bob);
+
+        assertEquals(Optional.empty(), partie.demandeur());
+        partie.demanderARejoindre(carla);
+    }
+
+    @Test
+    void lesAutresPartiesDUnJoueurOccupeRestentMaisNePeuventPasDemarrer_RG11() {
+        PartieEntreJoueurs autre = partieOuverte();
+        partieEnCours();
+
+        assertEquals(EtatPartie.EN_ATTENTE, autre.etat());
+        assertThrows(TransitionInterditeException.class, () -> autre.demanderARejoindre(carla));
+    }
+
+    @Test
+    void annulerUnePartieEnAttenteNeLibereParUnJoueurOccupeAilleurs_RG11() {
+        PartieEntreJoueurs autre = partieOuverte();
+        partieEnCours();
+
+        autre.annuler(alice);
+
         assertFalse(alice.peutJouer());
     }
 
     @Test
-    void unJoueurDejaEnPartieNePeutPasEnCreerUne_RG11() {
-        partieOuverte();
+    void unePartieQuePersonneNeRejointExpireApresTroisMinutes() {
+        PartieEntreJoueurs partie = partieOuverte();
 
-        assertThrows(IllegalStateException.class, this::partieOuverte);
+        horloge.avancer(PartieEntreJoueurs.DELAI_D_EXPIRATION.minusSeconds(1));
+        partie.verifierTemps();
+        assertEquals(EtatPartie.EN_ATTENTE, partie.etat());
+
+        horloge.avancer(Duration.ofSeconds(1));
+        partie.verifierTemps();
+        assertEquals(EtatPartie.ANNULEE, partie.etat());
+    }
+
+    @Test
+    void uneDemandeSansReponseEstAbandonnee() {
+        PartieEntreJoueurs partie = partieOuverte();
+        partie.demanderARejoindre(bob);
+
+        horloge.avancer(PartieEntreJoueurs.DELAI_DE_REPONSE);
+        partie.verifierTemps();
+
+        assertEquals(Optional.empty(), partie.demandeur());
+        assertEquals(EtatPartie.EN_ATTENTE, partie.etat());
     }
 
     @Test

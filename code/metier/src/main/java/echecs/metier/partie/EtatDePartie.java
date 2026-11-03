@@ -16,6 +16,22 @@ public abstract class EtatDePartie {
         throw refus("rejoindre");
     }
 
+    public void demanderARejoindre(PartieEntreJoueurs partie, Joueur joueur) {
+        throw refus("demander à rejoindre");
+    }
+
+    public void confirmerDemande(PartieEntreJoueurs partie, Joueur joueur) {
+        throw refus("confirmer la demande");
+    }
+
+    public void refuserDemande(PartieEntreJoueurs partie, Joueur joueur) {
+        throw refus("refuser la demande");
+    }
+
+    public void retirerDemande(PartieEntreJoueurs partie, Joueur joueur) {
+        throw refus("retirer la demande");
+    }
+
     public void refuserInvitation(PartieEntreJoueurs partie, Joueur joueur) {
         throw refus("refuser l'invitation");
     }

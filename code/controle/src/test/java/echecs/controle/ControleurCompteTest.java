@@ -188,8 +188,10 @@ class ControleurCompteTest {
     void suspendreUnJoueurEnPartieLuiFaitAbandonner_RG8() {
         Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
         Joueur bob = controleur.creerCompte("bob", "bob@exemple.com", MOT_DE_PASSE);
-        PartieEntreJoueurs partie = controleurPartie(alice).creerPartie(RAPIDE, Couleur.BLANC, null);
-        controleurPartie(bob).rejoindrePartie(partie);
+        ControleurPartie controleurAlice = controleurPartie(alice);
+        PartieEntreJoueurs partie = controleurAlice.creerPartie(RAPIDE, Couleur.BLANC, null);
+        controleurPartie(bob).demanderARejoindre(partie);
+        controleurAlice.confirmerDemande(partie);
 
         controleur.suspendre(administrateur, bob);
 
@@ -269,7 +271,11 @@ class ControleurCompteTest {
     @Test
     void unJoueurEnPartieNePeutPasEtreNomme_RG17() {
         Joueur alice = controleur.creerCompte("alice", "alice@exemple.com", MOT_DE_PASSE);
-        controleurPartie(alice).creerPartie(RAPIDE, Couleur.BLANC, null);
+        Joueur bob = controleur.creerCompte("bob", "bob@exemple.com", MOT_DE_PASSE);
+        ControleurPartie controleurAlice = controleurPartie(alice);
+        PartieEntreJoueurs partie = controleurAlice.creerPartie(RAPIDE, Couleur.BLANC, null);
+        controleurPartie(bob).demanderARejoindre(partie);
+        controleurAlice.confirmerDemande(partie);
 
         assertThrows(AccesRefuseException.class, () -> controleur.nommerAdministrateur(administrateur, alice));
         assertFalse(alice.estAdministrateur());

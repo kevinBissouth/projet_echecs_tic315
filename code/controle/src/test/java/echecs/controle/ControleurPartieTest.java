@@ -52,7 +52,8 @@ class ControleurPartieTest {
 
     private PartieEntreJoueurs partieEnCours() {
         PartieEntreJoueurs partie = controleurAlice.creerPartie(RAPIDE, Couleur.BLANC, null);
-        controleurBob.rejoindrePartie(partie);
+        controleurBob.demanderARejoindre(partie);
+        controleurAlice.confirmerDemande(partie);
         return partie;
     }
 
@@ -87,7 +88,7 @@ class ControleurPartieTest {
 
     @Test
     void unJoueurEnPartieNePeutPasEnCommencerUneAutre_RG11() {
-        controleurAlice.creerPartie(RAPIDE, Couleur.BLANC, null);
+        partieEnCours();
 
         assertThrows(ActionRefuseeException.class, () -> controleurAlice.creerPartie(RAPIDE, Couleur.BLANC, null));
         assertThrows(ActionRefuseeException.class, () -> controleurAlice.demarrerPartieContreOrdinateur(FORCE, Couleur.BLANC));
@@ -168,9 +169,10 @@ class ControleurPartieTest {
         List<String> ecranDeCarla = new ArrayList<>();
         ControleurPartie controleurCarla = controleur(carla, vue -> ecranDeCarla.add(vue.position()), new FauxMoteur());
 
-        assertThrows(TransitionInterditeException.class, () -> controleurCarla.rejoindrePartie(partie));
+        assertThrows(TransitionInterditeException.class, () -> controleurCarla.demanderARejoindre(partie));
 
-        controleurBob.rejoindrePartie(partie);
+        controleurBob.demanderARejoindre(partie);
+        controleurAlice.confirmerDemande(partie);
         assertTrue(ecranDeCarla.isEmpty());
     }
 
@@ -346,5 +348,46 @@ class ControleurPartieTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(interruption);
         }
+    }
+
+    @Test
+    void unePartieEnAttenteNEmpechePasDEnProposerUneAutre_RG11() {
+        controleurAlice.creerPartie(RAPIDE, Couleur.BLANC, null);
+
+        assertEquals(EtatPartie.EN_ATTENTE, controleurAlice.creerPartie(RAPIDE, Couleur.NOIR, null).etat());
+    }
+
+    @Test
+    void lePremierAccepteEntreEnPartieEtSesAutresPartiesAttendent_RG11() {
+        PartieEntreJoueurs premiere = controleurAlice.creerPartie(RAPIDE, Couleur.BLANC, null);
+        PartieEntreJoueurs seconde = controleurAlice.creerPartie(RAPIDE, Couleur.NOIR, null);
+        Joueur carla = new Joueur("carla", "carla@exemple.com");
+        ControleurPartie controleurCarla = controleur(carla, partie -> { }, new FauxMoteur());
+
+        controleurBob.demanderARejoindre(premiere);
+        controleurAlice.confirmerDemande(premiere);
+
+        assertEquals(EtatPartie.EN_COURS, premiere.etat());
+        assertEquals(EtatPartie.EN_ATTENTE, seconde.etat());
+        ActionRefuseeException refus = assertThrows(ActionRefuseeException.class, () -> controleurCarla.demanderARejoindre(seconde));
+        assertEquals("alice joue déjà une partie", refus.getMessage());
+    }
+
+    @Test
+    void leCreateurRetireUnePartieQuiAttend() {
+        PartieEntreJoueurs partie = controleurAlice.creerPartie(RAPIDE, Couleur.BLANC, null);
+
+        controleurAlice.annulerPartie(partie);
+
+        assertEquals(EtatPartie.ANNULEE, partie.etat());
+    }
+
+    @Test
+    void unJoueurDejaEnPartieNePeutPasDemanderUneAutre_RG11() {
+        partieEnCours();
+        PartieEntreJoueurs autre = controleur(new Joueur("dina", "dina@exemple.com"), partie -> { }, new FauxMoteur())
+                .creerPartie(RAPIDE, Couleur.BLANC, null);
+
+        assertThrows(ActionRefuseeException.class, () -> controleurBob.demanderARejoindre(autre));
     }
 }

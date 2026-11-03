@@ -124,7 +124,9 @@ public abstract class Partie {
     }
 
     /** Overridden when a game starts something more, such as the clocks. */
+    /** RG11: a player is busy from the moment a game starts, not while it waits for an opponent. */
     void demarrer() {
+        participations.forEach(participation -> participation.joueur().occuper());
         dateDebut = maintenant();
         changerEtat(new EtatEnCours());
     }
@@ -175,7 +177,6 @@ public abstract class Partie {
     }
 
     final void ajouterParticipation(Participation participation) {
-        participation.joueur().occuper();
         participations.add(participation);
     }
 
@@ -240,7 +241,10 @@ public abstract class Partie {
     private void clore(EtatDePartie etatFinal) {
         dateFin = maintenant();
         changerEtat(etatFinal);
-        participations.forEach(participation -> participation.joueur().liberer());
+        // A game that never started never made anyone busy: its players may be playing elsewhere.
+        if (dateDebut != null) {
+            participations.forEach(participation -> participation.joueur().liberer());
+        }
     }
 
     private Optional<Participation> participationDe(Joueur joueur) {

@@ -19,7 +19,19 @@ public interface IPartie {
 
     List<PartieEntreJoueurs> consulterPartiesOuvertes();
 
-    void rejoindrePartie(PartieEntreJoueurs partie);
+    /** Asks to join: the game starts once its creator accepts (RG11, RG13). */
+    void demanderARejoindre(PartieEntreJoueurs partie);
+
+    /** The creator accepts the player who asked: the game starts. */
+    void confirmerDemande(PartieEntreJoueurs partie);
+
+    /** The creator declines the player who asked: the game is cancelled. */
+    void refuserDemande(PartieEntreJoueurs partie);
+
+    void retirerDemande(PartieEntreJoueurs partie);
+
+    /** The creator withdraws one of their games that is still waiting. */
+    void annulerPartie(PartieEntreJoueurs partie);
 
     void refuserInvitation(PartieEntreJoueurs partie);
 
