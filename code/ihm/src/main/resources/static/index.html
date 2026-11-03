@@ -2,29 +2,20 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Essai d'hébergement</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#030305">
+  <meta name="description" content="Jouez aux échecs en ligne, contre un adversaire ou contre l'ordinateur.">
+  <title>Caïssa, échecs en ligne</title>
+  <link rel="icon" href="assets/pieces/nlt.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/polices/cinzel-decorative-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/polices/spectral-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/polices/hanken-grotesk-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/site.css">
 </head>
 <body>
-  <h1>Essai d'hébergement</h1>
-  <p><button id="sante">Mémoire</button> <button id="moteur">Stockfish</button> <button id="ws">WebSocket</button></p>
-  <pre id="resultat"></pre>
-  <script>
-    const resultat = document.getElementById("resultat");
-    const afficher = texte => { resultat.textContent += texte + "\n"; };
-    const appeler = async (adresse, options) => {
-      const reponse = await fetch(adresse, options);
-      afficher(reponse.status + " " + await reponse.text());
-    };
-    document.getElementById("sante").onclick = () => appeler("/api/essai/sante");
-    document.getElementById("moteur").onclick = () => appeler("/api/essai/moteur", {method: "POST"});
-    document.getElementById("ws").onclick = () => {
-      const schema = location.protocol === "https:" ? "wss://" : "ws://";
-      const connexion = new WebSocket(schema + location.host + "/ws/essai");
-      connexion.onopen = () => connexion.send("bonjour");
-      connexion.onmessage = message => { afficher(message.data); connexion.close(); };
-      connexion.onerror = () => afficher("Erreur WebSocket");
-    };
-  </script>
+  <header id="entete" class="entete"></header>
+  <main id="contenu" class="contenu" tabindex="-1"></main>
+  <nav id="onglets" class="onglets" aria-label="Navigation principale"></nav>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
